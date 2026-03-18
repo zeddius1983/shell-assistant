@@ -20,8 +20,10 @@ from .system_info import format_for_prompt, get_system_info
 from .context import get_context
 from .providers import get_provider
 
-console = Console()
-err_console = Console(stderr=True)
+import os as _os
+_term_width = _os.get_terminal_size().columns if _os.isatty(1) else 120
+console = Console(width=_term_width)
+err_console = Console(stderr=True, width=_term_width)
 
 
 def build_prompt(question: str, context: Optional[str]) -> str:
