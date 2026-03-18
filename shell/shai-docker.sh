@@ -42,9 +42,101 @@ elif [ -n "$BASH_VERSION" ]; then
     fi
 fi
 
+# Build the base docker run command into an array
+_shai_docker_cmd() {
+    local _stdin_flag=()
+    [ -t 0 ] || _stdin_flag=(-i)
+    echo_cmd=(docker run --rm "${_stdin_flag[@]}"
+        -e OPENAI_API_KEY
+        -e ANTHROPIC_API_KEY
+        -v "${_shai_config_dir}:/root/.config/shai:ro"
+        -v "${_shai_cache_dir}:/root/.cache/shai:ro"
+        "$SHAI_IMAGE"
+    )
+}
+
+# 'shai do <task>' — ask LLM for a command, confirm, execute on host
+_shai_do() {
+    mkdir -p "$_shai_config_dir" "$_shai_cache_dir"
+
+    local _cmd=(docker run --rm
+        -e OPENAI_API_KEY
+        -e ANTHROPIC_API_KEY
+        -v "${_shai_config_dir}:/root/.config/shai:ro"
+        -v "${_shai_cache_dir}:/root/.cache/shai:ro"
+        "$SHAI_IMAGE"
+        do
+    )
+
+    # Capture full LLM response
+    local response
+    response=$("${_cmd[@]}" "$@" 2>&1)
+
+    # Display with glow if available, otherwise plain
+    if command -v glow > /dev/null 2>&1; then
+        printf '%s\n' "$response" | glow -
+    else
+        printf '%s\n' "$response"
+    fi
+
+    # Extract first ```bash ... ``` block
+    local extracted_cmd
+    extracted_cmd=$(printf '%s\n' "$response" | awk '/^```bash$/{found=1;next} found && /^```/{exit} found{print}')
+
+    if [ -z "$extracted_cmd" ]; then
+        printf '\n\033[33mNo executable command found in response.\033[0m\n'
+        return 1
+    fi
+
+    # Warn on destructive patterns
+    local dangerous=0
+    case "$extracted_cmd" in
+        *"rm "*|*"rm -"*|"rm "*) dangerous=1 ;;
+    esac
+    case "$extracted_cmd" in
+        *"sudo "*|*" dd "*|*"dd if"*|*"mkfs"*|*"| sh"*|*"| bash"*|*"chmod -R"*|*"chown -R"*) dangerous=1 ;;
+    esac
+
+    printf '\n'
+    [ "$dangerous" -eq 1 ] && printf '\033[33m⚠  Warning: command may be destructive\033[0m\n'
+    printf '\033[1mRun? [y/e/N]\033[0m  '
+
+    local answer
+    read -r answer
+    case "$answer" in
+        y|Y)
+            printf '\n'
+            eval "$extracted_cmd"
+            ;;
+        e|E)
+            printf 'Edit: '
+            if [ -n "$ZSH_VERSION" ]; then
+                local edited="$extracted_cmd"
+                vared edited
+                printf '\n'
+                eval "$edited"
+            else
+                local edited
+                read -e -i "$extracted_cmd" -r edited
+                eval "$edited"
+            fi
+            ;;
+        *)
+            printf 'Cancelled.\n'
+            ;;
+    esac
+}
+
 # Internal function — called via the noglob alias below
 _shai() {
     mkdir -p "$_shai_config_dir" "$_shai_cache_dir"
+
+    # Dispatch 'do' subcommand to host-side executor
+    if [ "$1" = "do" ]; then
+        shift
+        _shai_do "$@"
+        return
+    fi
 
     # Build docker command as an array to avoid any glob re-expansion
     local _cmd=(docker run --rm)

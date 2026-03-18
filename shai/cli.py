@@ -10,7 +10,7 @@ from rich.live import Live
 from rich.markdown import Markdown
 from rich.text import Text
 
-from .config import load_config, save_default_config, CONFIG_PATH
+from .config import load_config, save_default_config, CONFIG_PATH, DO_SYSTEM_PROMPT
 from .context import get_context
 from .providers import get_provider
 
@@ -102,8 +102,9 @@ def main(ctx, query, no_context, raw, provider, model, shell_path):
         click.echo(str(script.resolve()))
         return
 
-    # Special sub-command: config
     args = list(query)
+
+    # Special sub-command: config
     if args and args[0] == "config":
         _cmd_config()
         return
@@ -121,6 +122,19 @@ def main(ctx, query, no_context, raw, provider, model, shell_path):
     if model:
         if cfg.provider in cfg.providers:
             cfg.providers[cfg.provider]["model"] = model
+
+    # Special sub-command: do
+    if args and args[0] == "do":
+        task = " ".join(args[1:])
+        if not task:
+            err_console.print("[red]Usage:[/red] shai do <task description>")
+            sys.exit(1)
+        try:
+            stream_response(DO_SYSTEM_PROMPT, task, cfg, raw=True)
+        except Exception as e:
+            err_console.print(f"[red]Error:[/red] {e}")
+            sys.exit(1)
+        return
 
     # Determine mode: help (analyse context for errors) vs question (answer directly)
     is_help = args in ([], ["help"])
