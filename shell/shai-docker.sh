@@ -222,10 +222,12 @@ _shai() {
     )
 
     # Check if --raw or -r was passed — only scan leading flags, stop at first non-flag word
+    # Also skip glow for /context, /stats and any /subcommand (they output rich ANSI panels)
     local _raw=0
     for _arg in "$@"; do
         case "$_arg" in
             --raw|-r) _raw=1 ;;
+            /*)       _raw=1 ; break ;;  # /subcommands output rich panels, not markdown
             -*) ;;          # other flag, keep scanning
             *) break ;;     # first non-flag word: stop
         esac
