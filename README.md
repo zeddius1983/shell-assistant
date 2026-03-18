@@ -78,13 +78,13 @@ source "$(shai --shell-path bash)"
 **zsh** — add to `~/.zshrc`:
 ```zsh
 export SHAI_IMAGE="ghcr.io/youruser/shai:latest"  # or shai:local
-source /path/to/shai/shell/shai-docker.zsh
+source /path/to/shai/shell/shai-docker.sh
 ```
 
 **bash** — add to `~/.bashrc`:
 ```bash
 export SHAI_IMAGE="ghcr.io/youruser/shai:latest"
-source /path/to/shai/shell/shai-docker.bash
+source /path/to/shai/shell/shai-docker.sh
 ```
 
 Then reload your shell:
@@ -94,11 +94,64 @@ source ~/.zshrc   # or ~/.bashrc
 
 ---
 
+## Usage
+
+```bash
+# Explain what just went wrong
+shai help
+
+# Ask anything shell-related
+shai how to list all datasets in a ZFS pool
+shai what does SIGKILL mean
+shai how do I find which process is using port 8080
+
+# Let shai do it — generates a command, shows it, asks before running
+shai do find the largest file in ~/Downloads
+shai do show disk usage by folder in /var
+shai do list all listening ports
+
+# Pipe output directly (no shell hook needed)
+kubectl get pods 2>&1 | shai
+journalctl -xe | shai why is nginx failing
+
+# Skip context, ask a clean question
+shai --no-context explain the difference between hard and soft links
+
+# Raw output — no glow or rich rendering
+shai --raw how do I list open ports
+shai -r help
+
+# Use a specific provider or model for one query
+shai -p anthropic help
+shai -p openai -m gpt-4o how do I list listening ports
+```
+
+### Subcommands
+
+| Command | Description |
+|---|---|
+| `shai help` | Analyse your last terminal output and explain errors |
+| `shai do <task>` | Generate a shell command, preview it, confirm before running |
+| `shai /config` | Show the active config file, or create a default one |
+| `shai /context` | Show the full system prompt and captured terminal context |
+| `shai /stats` | Show provider, model, context size, and system info |
+
+### Flags
+
+| Flag | Short | Description |
+|---|---|---|
+| `--no-context` | | Skip attaching terminal context |
+| `--raw` | `-r` | Disable glow and rich rendering, stream plain text |
+| `--provider <name>` | `-p` | Override the active provider for this query |
+| `--model <name>` | `-m` | Override the model for this query |
+
+---
+
 ## Configuration
 
 Generate the default config file:
 ```bash
-shai config
+shai /config
 ```
 
 This creates `~/.config/shai/config.yaml`:
@@ -137,36 +190,6 @@ providers:
     model: my-model
 ```
 
-Switch providers on the fly:
-```bash
-shai -p anthropic help
-shai -p openai -m gpt-4o how do I list listening ports
-```
-
----
-
-## Usage
-
-```bash
-# Explain what just went wrong
-shai help
-
-# Ask anything shell-related (uses terminal context automatically)
-shai how to list all datasets in a ZFS pool
-shai what does SIGKILL mean
-shai how do I find which process is using port 8080
-
-# Pipe output directly (no shell hook needed)
-kubectl get pods 2>&1 | shai
-journalctl -xe | shai why is nginx failing
-
-# Skip context, ask a clean question
-shai --no-context explain the difference between hard and soft links
-
-# Use a specific provider for one query
-shai -p anthropic help
-```
-
 ---
 
 ## Supported providers
@@ -180,6 +203,118 @@ shai -p anthropic help
 | llama.cpp / vLLM / any OpenAI-compatible | `openai` | Set `base_url` to your server |
 
 > **Docker note:** `localhost` in your config is automatically rewritten to `host.docker.internal` when shai runs inside a container, so local servers are always reachable.
+
+---
+
+## Recommended terminal setup
+
+shai works in any terminal, but the following tools give you the best experience.
+
+### glow — markdown rendering
+
+shai pipes its responses through [glow](https://github.com/charmbracelet/glow) when available, giving you properly rendered markdown with syntax-highlighted code blocks.
+
+```bash
+brew install glow
+```
+
+Without glow, shai falls back to rich's live markdown renderer inside the container.
+
+### Starship — prompt
+
+[Starship](https://starship.rs) is a fast, cross-shell prompt. It shows git branch, Python version, Docker context, and more — useful context when working alongside shai.
+
+```bash
+brew install starship
+```
+
+Add to `~/.zshrc` (must be the last line):
+```zsh
+eval "$(starship init zsh)"
+```
+
+**Recommended `~/.config/starship.toml`** for use with shai:
+
+```toml
+format = """
+$directory$git_branch$git_status$python$docker_context
+$character"""
+
+[directory]
+truncation_length = 3
+truncate_to_repo = true
+
+[git_branch]
+symbol = " "
+style = "bold purple"
+
+[git_status]
+ahead = "⇡${count}"
+behind = "⇣${count}"
+diverged = "⇕⇡${ahead_count}⇣${behind_count}"
+modified = "!${count}"
+untracked = "?${count}"
+staged = "+${count}"
+
+[python]
+symbol = "🐍 "
+format = "via [${symbol}v${version}](yellow) "
+
+[docker_context]
+symbol = "🐳 "
+format = "via [${symbol}${context}](blue bold) "
+only_with_files = false
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
+```
+
+This prompt clearly shows your active directory, git state, Python environment, and Docker context at a glance — so shai always has relevant visual context alongside the captured terminal scrollback.
+
+### eza — better `ls`
+
+[eza](https://eza.rocks) is a modern `ls` replacement with colour coding, icons, and git status. When you ask `shai do list files`, the output it works from is much richer.
+
+```bash
+brew install eza
+```
+
+**Recommended aliases** — add to `~/.zshrc`:
+
+```zsh
+alias ls='eza --icons --group-directories-first'
+alias ll='eza --icons --group-directories-first -l --git'
+alias la='eza --icons --group-directories-first -la --git'
+alias lt='eza --icons --tree --level=2'
+alias lta='eza --icons --tree --level=2 -a'
+```
+
+### zsh-syntax-highlighting
+
+Highlights valid commands green and unknown commands red as you type.
+
+```bash
+brew install zsh-syntax-highlighting
+```
+
+Add to `~/.zshrc` (after all other sourcing):
+```zsh
+source $(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+```
+
+### zsh-autosuggestions
+
+Shows grey completions from your history as you type — press `→` to accept.
+
+```bash
+brew install zsh-autosuggestions
+```
+
+Add to `~/.zshrc`:
+```zsh
+source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+```
 
 ---
 
