@@ -99,12 +99,12 @@ _shai_do() {
 
     printf '\n'
     [ "$dangerous" -eq 1 ] && printf '\033[33m⚠  Warning: command may be destructive\033[0m\n'
-    printf '\033[1mRun? [y/e/N]\033[0m  '
+    printf '\033[1mRun? [Y/e/n]\033[0m  '
 
     local answer
     read -r answer
     case "$answer" in
-        y|Y)
+        y|Y|"")
             printf '\n'
             eval "$extracted_cmd"
             ;;
