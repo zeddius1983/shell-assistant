@@ -57,10 +57,14 @@ _shai() {
         "$SHAI_IMAGE"
     )
 
-    # Check if --raw or -r was passed
+    # Check if --raw or -r was passed — only scan leading flags, stop at first non-flag word
     local _raw=0
     for _arg in "$@"; do
-        [ "$_arg" = "--raw" ] || [ "$_arg" = "-r" ] && _raw=1 && break
+        case "$_arg" in
+            --raw|-r) _raw=1 ;;
+            -*) ;;          # other flag, keep scanning
+            *) break ;;     # first non-flag word: stop
+        esac
     done
 
     if [ "$_raw" -eq 0 ] && command -v glow > /dev/null 2>&1; then

@@ -68,7 +68,11 @@ def stream_response(system: str, prompt: str, cfg, raw: bool = False) -> None:
 
 
 @click.command(
-    context_settings={"ignore_unknown_options": True, "allow_extra_args": True}
+    context_settings={
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+        "allow_interspersed_args": False,  # flags must come before the query
+    }
 )
 @click.argument("query", nargs=-1)
 @click.option("--no-context", is_flag=True, help="Do not attach terminal context.")
