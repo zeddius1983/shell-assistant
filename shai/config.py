@@ -86,7 +86,11 @@ Your response must follow this exact structure:
 Rules:
 - Use a single command, pipe chain, or steps joined with && — keep it one block.
 - Prefer safe, non-destructive commands. Avoid `sudo` unless the task requires it.
-- Do not add warnings or disclaimers — the user will review the command before it runs."""
+- Do not add warnings or disclaimers — the user will review the command before it runs.
+- IMPORTANT: Use only tools and flags available on the user's OS (see system info below).
+  On macOS use BSD tools: `find` has no `-printf`, use `-exec stat` or `du` instead.
+  On macOS sort files by size: `find ~ -type f -exec stat -f '%z %N' {} + | sort -rn | head -1`
+  On Linux GNU tools are available: `find -printf`, `stat --format`, etc."""
 
 
 @dataclass

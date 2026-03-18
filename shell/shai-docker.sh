@@ -19,11 +19,18 @@ _shai_save_context() {
     local exit_code=$?
     mkdir -p "$_shai_cache_dir"
 
+    local last_cmd
+    last_cmd=$(fc -ln -1 2>/dev/null | sed 's/^[[:space:]]*//')
+
+    # Don't overwrite context when the last command was shai itself —
+    # keep the previous command's context so 'shai help' sees the real error
+    case "$last_cmd" in
+        shai*) return $exit_code ;;
+    esac
+
     if [ -n "$TMUX" ]; then
         tmux capture-pane -p -S -200 2>/dev/null > "$_shai_context_file"
     else
-        local last_cmd
-        last_cmd=$(fc -ln -1 2>/dev/null | sed 's/^[[:space:]]*//')
         {
             echo "$ ${last_cmd}"
             [ "$exit_code" -ne 0 ] && echo "[exited with code $exit_code]"
