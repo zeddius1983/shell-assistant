@@ -15,6 +15,38 @@ _shai_context_file="$_shai_cache_dir/context"
 _shai_config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/shai"
 SHAI_IMAGE="${SHAI_IMAGE:-ghcr.io/youruser/shai:latest}"
 
+# Collect host system info once at source time and export for the container
+_shai_collect_host_info() {
+    local _uname
+    _uname="$(uname)"
+
+    if [ "$_uname" = "Darwin" ]; then
+        local _ver
+        _ver="$(sw_vers -productVersion 2>/dev/null)"
+        export SHAI_HOST_OS="macOS ${_ver}"
+        local _mem_bytes
+        _mem_bytes="$(sysctl -n hw.memsize 2>/dev/null)"
+        export SHAI_HOST_MEM="$(( _mem_bytes / 1073741824 )) GB"
+    else
+        local _pretty
+        _pretty="$(grep PRETTY_NAME /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '\"')"
+        export SHAI_HOST_OS="${_pretty:-Linux}"
+        local _kb
+        _kb="$(awk '/MemTotal/{print $2}' /proc/meminfo 2>/dev/null)"
+        export SHAI_HOST_MEM="$(( _kb / 1048576 )) GB"
+    fi
+
+    export SHAI_HOST_ARCH="$(uname -m)"
+    export SHAI_HOST_SHELL="$(${SHELL} --version 2>&1 | head -1)"
+
+    local _pkg=""
+    for _m in brew apt dnf pacman zypper apk; do
+        command -v "$_m" > /dev/null 2>&1 && _pkg="${_pkg:+$_pkg, }$_m"
+    done
+    export SHAI_HOST_PKG="$_pkg"
+}
+_shai_collect_host_info
+
 _shai_save_context() {
     local exit_code=$?
     mkdir -p "$_shai_cache_dir"
@@ -56,6 +88,11 @@ _shai_docker_cmd() {
     echo_cmd=(docker run --rm "${_stdin_flag[@]}"
         -e OPENAI_API_KEY
         -e ANTHROPIC_API_KEY
+        -e SHAI_HOST_OS
+        -e SHAI_HOST_ARCH
+        -e SHAI_HOST_SHELL
+        -e SHAI_HOST_MEM
+        -e SHAI_HOST_PKG
         -v "${_shai_config_dir}:/root/.config/shai:ro"
         -v "${_shai_cache_dir}:/root/.cache/shai:ro"
         "$SHAI_IMAGE"
@@ -69,6 +106,11 @@ _shai_do() {
     local _cmd=(docker run --rm
         -e OPENAI_API_KEY
         -e ANTHROPIC_API_KEY
+        -e SHAI_HOST_OS
+        -e SHAI_HOST_ARCH
+        -e SHAI_HOST_SHELL
+        -e SHAI_HOST_MEM
+        -e SHAI_HOST_PKG
         -v "${_shai_config_dir}:/root/.config/shai:ro"
         -v "${_shai_cache_dir}:/root/.cache/shai:ro"
         "$SHAI_IMAGE"
@@ -151,6 +193,11 @@ _shai() {
     _cmd+=(
         -e OPENAI_API_KEY
         -e ANTHROPIC_API_KEY
+        -e SHAI_HOST_OS
+        -e SHAI_HOST_ARCH
+        -e SHAI_HOST_SHELL
+        -e SHAI_HOST_MEM
+        -e SHAI_HOST_PKG
         -v "${_shai_config_dir}:/root/.config/shai:ro"
         -v "${_shai_cache_dir}:/root/.cache/shai:ro"
         "$SHAI_IMAGE"

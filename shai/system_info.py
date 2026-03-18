@@ -1,4 +1,8 @@
-"""Collect local system information to inject into LLM prompts."""
+"""Collect local system information to inject into LLM prompts.
+
+When running inside Docker the host passes info via SHAI_HOST_* env vars
+set by the shell wrapper. Falls back to local platform detection otherwise.
+"""
 
 import os
 import platform
@@ -9,15 +13,14 @@ from functools import lru_cache
 
 @lru_cache(maxsize=1)
 def get_system_info() -> dict:
-    info = {
-        "os": _os_name(),
-        "os_version": platform.version(),
-        "arch": platform.machine(),
-        "shell": _shell(),
-        "memory": _memory(),
-        "package_manager": _package_manager(),
+    # Prefer values injected by the shell wrapper (host system)
+    return {
+        "os":              os.environ.get("SHAI_HOST_OS")    or _os_name(),
+        "arch":            os.environ.get("SHAI_HOST_ARCH")  or platform.machine(),
+        "shell":           os.environ.get("SHAI_HOST_SHELL") or _shell(),
+        "memory":          os.environ.get("SHAI_HOST_MEM")   or _memory(),
+        "package_manager": os.environ.get("SHAI_HOST_PKG")   or _package_manager(),
     }
-    return info
 
 
 def format_for_prompt() -> str:
@@ -40,7 +43,6 @@ def _os_name() -> str:
         mac_ver = platform.mac_ver()[0]
         return f"macOS {mac_ver}" if mac_ver else "macOS"
     if system == "Linux":
-        # Try to get distro name from os-release
         try:
             with open("/etc/os-release") as f:
                 for line in f:
@@ -56,8 +58,6 @@ def _shell() -> str:
     shell = os.environ.get("SHELL", "")
     if not shell:
         return "unknown"
-    name = os.path.basename(shell)
-    # Try to get version
     try:
         result = subprocess.run(
             [shell, "--version"],
@@ -66,14 +66,13 @@ def _shell() -> str:
         first_line = (result.stdout or result.stderr).splitlines()[0]
         return first_line.strip()
     except Exception:
-        return name
+        return os.path.basename(shell)
 
 
 def _memory() -> str:
     system = platform.system()
     try:
         if system == "Darwin":
-            # sysctl gives total physical memory in bytes
             result = subprocess.run(
                 ["sysctl", "-n", "hw.memsize"],
                 capture_output=True, text=True, timeout=2
