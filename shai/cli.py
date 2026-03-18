@@ -10,8 +10,13 @@ from rich.live import Live
 from rich.markdown import Markdown
 from rich.text import Text
 
+from rich.panel import Panel
+from rich.syntax import Syntax
+from rich.table import Table
+
 from .config import load_config, save_default_config, CONFIG_PATH, DO_SYSTEM_PROMPT
-from .system_info import format_for_prompt
+from .config import CONTEXT_FILE
+from .system_info import format_for_prompt, get_system_info
 from .context import get_context
 from .providers import get_provider
 
@@ -105,9 +110,15 @@ def main(ctx, query, no_context, raw, provider, model, shell_path):
 
     args = list(query)
 
-    # Special sub-command: config
+    # Special sub-commands
     if args and args[0] == "config":
         _cmd_config()
+        return
+    if args and args[0] == "/context":
+        _cmd_context(provider, model)
+        return
+    if args and args[0] == "/stats":
+        _cmd_stats(provider, model)
         return
 
     try:
@@ -181,3 +192,80 @@ def _cmd_config():
         path = save_default_config()
         console.print(f"[green]Created default config:[/green] {path}")
         console.print("\nEdit it to add your API keys and preferred provider.")
+
+
+def _cmd_context(provider_override, model_override):
+    """Print the full system prompt + terminal context that would be sent to the LLM."""
+    try:
+        cfg = load_config()
+    except Exception as e:
+        err_console.print(f"[red]Config error:[/red] {e}")
+        sys.exit(1)
+    if provider_override:
+        cfg.provider = provider_override
+    if model_override and cfg.provider in cfg.providers:
+        cfg.providers[cfg.provider]["model"] = model_override
+
+    system = cfg.system_prompt + "\n\n" + format_for_prompt()
+    context = get_context(cfg.context_lines)
+
+    console.print(Panel(system, title="[bold cyan]System Prompt[/bold cyan]", border_style="cyan"))
+    console.print()
+    if context:
+        console.print(Panel(
+            Syntax(context, "text", theme="ansi_dark", word_wrap=True),
+            title="[bold yellow]Terminal Context[/bold yellow]",
+            border_style="yellow",
+        ))
+        est_tokens = len((system + context).split()) * 4 // 3
+        console.print(f"\n[dim]~{len(context.splitlines())} lines · ~{est_tokens} tokens estimated[/dim]")
+    else:
+        console.print(Panel("[dim]No context captured yet.[/dim]",
+                            title="[bold yellow]Terminal Context[/bold yellow]",
+                            border_style="yellow"))
+
+
+def _cmd_stats(provider_override, model_override):
+    """Print provider, model, context, and system info stats."""
+    try:
+        cfg = load_config()
+    except Exception as e:
+        err_console.print(f"[red]Config error:[/red] {e}")
+        sys.exit(1)
+    if provider_override:
+        cfg.provider = provider_override
+    if model_override and cfg.provider in cfg.providers:
+        cfg.providers[cfg.provider]["model"] = model_override
+
+    pcfg = cfg.get_active_provider()
+    sys_info = get_system_info()
+    context = get_context(cfg.context_lines)
+    context_lines_actual = len(context.splitlines()) if context else 0
+    context_chars = len(context) if context else 0
+    est_tokens = context_chars * 4 // 15  # rough estimate
+
+    system_prompt = cfg.system_prompt + "\n\n" + format_for_prompt()
+    system_tokens = len(system_prompt.split()) * 4 // 3
+
+    t = Table(show_header=False, box=None, padding=(0, 2))
+    t.add_column(style="bold cyan", no_wrap=True)
+    t.add_column()
+
+    t.add_row("Provider", cfg.provider)
+    t.add_row("Type", pcfg.type)
+    t.add_row("Model", pcfg.model)
+    t.add_row("Base URL", pcfg.base_url or "[dim]default[/dim]")
+    t.add_row("", "")
+    t.add_row("Context limit", f"{cfg.context_lines} lines (max)")
+    t.add_row("Context captured", f"{context_lines_actual} lines · {context_chars} chars · ~{est_tokens} tokens")
+    t.add_row("System prompt", f"~{system_tokens} tokens")
+    t.add_row("Context file", str(CONTEXT_FILE))
+    t.add_row("Config file", str(CONFIG_PATH))
+    t.add_row("", "")
+    t.add_row("OS", sys_info["os"])
+    t.add_row("Architecture", sys_info["arch"])
+    t.add_row("Shell", sys_info["shell"])
+    t.add_row("Memory", sys_info["memory"])
+    t.add_row("Package manager", sys_info["package_manager"] or "[dim]none detected[/dim]")
+
+    console.print(Panel(t, title="[bold green]shai stats[/bold green]", border_style="green"))
