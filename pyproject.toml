@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "shai"
+version = "0.1.0"
+description = "Shell AI — LLM-powered assistance directly in your terminal"
+requires-python = ">=3.9"
+dependencies = [
+    "click>=8.0",
+    "httpx>=0.24",
+    "pyyaml>=6.0",
+    "rich>=13.0",
+]
+
+[project.scripts]
+shai = "shai.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["shai"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"shai/shell" = "shai/shell"

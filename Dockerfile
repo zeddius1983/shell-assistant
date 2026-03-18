@@ -1,0 +1,16 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install dependencies first for layer caching
+COPY pyproject.toml .
+RUN pip install --no-cache-dir hatchling && \
+    pip install --no-cache-dir click httpx pyyaml rich
+
+# Copy source
+COPY shai/ shai/
+
+# Install shai
+RUN pip install --no-cache-dir --no-deps .
+
+ENTRYPOINT ["shai"]

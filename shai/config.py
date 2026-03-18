@@ -1,0 +1,141 @@
+import os
+import yaml
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Optional
+
+CONFIG_PATH = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "shai" / "config.yaml"
+
+def _cache_dir() -> Path:
+    if os.environ.get("XDG_CACHE_HOME"):
+        return Path(os.environ["XDG_CACHE_HOME"]) / "shai"
+    if os.uname().sysname == "Darwin":
+        return Path.home() / "Library" / "Caches" / "shai"
+    return Path.home() / ".cache" / "shai"
+
+CONTEXT_FILE = _cache_dir() / "context"
+
+# When running inside Docker on macOS/Windows, use host.docker.internal to reach host services.
+# On Linux Docker the gateway is typically 172.17.0.1.
+# SHAI_OLLAMA_HOST env var allows explicit override.
+def _local_base_url(port: int) -> str:
+    """Return base URL for a local server, using host.docker.internal when inside Docker."""
+    host = "host.docker.internal" if os.path.exists("/.dockerenv") else "localhost"
+    return f"http://{host}:{port}/v1"
+
+
+DEFAULT_CONFIG = {
+    "provider": "lmstudio",
+    "context_lines": 100,
+    "providers": {
+        "lmstudio": {
+            "type": "openai",
+            "base_url": _local_base_url(1234),
+            "api_key": "lmstudio",
+            "model": "google/gemma-3-4b",
+        },
+        "ollama": {
+            "type": "openai",
+            "base_url": _local_base_url(11434),
+            "api_key": "ollama",
+            "model": "llama3.2",
+        },
+        "openai": {
+            "type": "openai",
+            "model": "gpt-4o",
+            # api_key: set via OPENAI_API_KEY env var or here
+        },
+        "anthropic": {
+            "type": "anthropic",
+            "model": "claude-sonnet-4-6",
+            # api_key: set via ANTHROPIC_API_KEY env var or here
+        },
+    },
+}
+
+SYSTEM_PROMPT = """You are shai, a concise shell assistant embedded in the user's terminal.
+
+## Formatting rules (always follow these)
+- Always respond in well-structured Markdown.
+- Use `inline code` for command names, flags, paths, and values.
+- Use fenced code blocks with language tags for all commands and code:
+  ```bash
+  your command here
+  ```
+- Use **bold** for the most important action or fix.
+- Use bullet lists for multiple steps or options.
+- Keep responses short — no padding, no filler sentences.
+
+## Behaviour
+When given terminal context (error analysis mode):
+- Look for errors, non-zero exit codes, or unexpected output.
+- Lead with the **fix**, then a one-line explanation.
+- If there is no error, say so in one sentence and stop.
+- Ignore file contents printed by commands like `cat` — focus on command results only.
+
+When asked a question (no context):
+- Answer directly and concisely using the formatting rules above."""
+
+
+@dataclass
+class ProviderConfig:
+    type: str          # "openai" | "anthropic"
+    model: str
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
+
+
+@dataclass
+class Config:
+    provider: str
+    providers: dict
+    context_lines: int = 100
+    system_prompt: str = SYSTEM_PROMPT
+
+    def get_active_provider(self) -> ProviderConfig:
+        if self.provider not in self.providers:
+            raise ValueError(
+                f"Provider '{self.provider}' not found in config. "
+                f"Available: {list(self.providers.keys())}"
+            )
+        raw = self.providers[self.provider]
+        base_url = raw.get("base_url")
+        # Inside Docker, localhost on the config refers to the host machine
+        if base_url and os.path.exists("/.dockerenv"):
+            base_url = base_url.replace("://localhost:", "://host.docker.internal:")
+        return ProviderConfig(
+            type=raw.get("type", "openai"),
+            model=raw["model"],
+            api_key=raw.get("api_key"),
+            base_url=base_url,
+        )
+
+
+def load_config() -> Config:
+    if CONFIG_PATH.exists():
+        with open(CONFIG_PATH) as f:
+            data = yaml.safe_load(f) or {}
+    else:
+        data = {}
+
+    # Deep merge with defaults
+    merged = dict(DEFAULT_CONFIG)
+    merged.update({k: v for k, v in data.items() if k != "providers"})
+
+    providers = dict(DEFAULT_CONFIG["providers"])
+    providers.update(data.get("providers", {}))
+    merged["providers"] = providers
+
+    return Config(
+        provider=merged["provider"],
+        providers=merged["providers"],
+        context_lines=merged.get("context_lines", 100),
+        system_prompt=merged.get("system_prompt", SYSTEM_PROMPT),
+    )
+
+
+def save_default_config():
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(CONFIG_PATH, "w") as f:
+        yaml.dump(DEFAULT_CONFIG, f, default_flow_style=False, sort_keys=False)
+    return CONFIG_PATH
