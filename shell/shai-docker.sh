@@ -227,7 +227,7 @@ _shai() {
     for _arg in "$@"; do
         case "$_arg" in
             --raw|-r) _raw=1 ;;
-            /*)       _raw=1 ; break ;;  # /subcommands output rich panels, not markdown
+            /*)       _raw=1 ; break ;;  # /config, /context, /stats output rich panels, not markdown
             -*) ;;          # other flag, keep scanning
             *) break ;;     # first non-flag word: stop
         esac
@@ -242,3 +242,9 @@ _shai() {
 
 # noglob prevents zsh from expanding ?, *, ! etc. before passing args to shai
 alias shai='noglob _shai'
+
+# Highlight shai subcommands when zsh-syntax-highlighting is active
+if [ -n "$ZSH_VERSION" ] && (( ${+ZSH_HIGHLIGHT_HIGHLIGHTERS} )); then
+    ZSH_HIGHLIGHT_PATTERNS+=('shai help'    'fg=yellow,bold')
+    ZSH_HIGHLIGHT_PATTERNS+=('shai do '     'fg=green,bold')
+fi
