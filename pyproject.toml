@@ -6,7 +6,21 @@ build-backend = "hatchling.build"
 name = "shai"
 version = "0.1.0"
 description = "Shell AI — LLM-powered assistance directly in your terminal"
+readme = "README.md"
+license = { text = "MIT" }
 requires-python = ">=3.9"
+keywords = ["shell", "ai", "llm", "terminal", "assistant"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Shells",
+    "Topic :: Utilities",
+]
+
 dependencies = [
     "click>=8.0",
     "httpx>=0.24",
@@ -14,11 +28,13 @@ dependencies = [
     "rich>=13.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/zeddius1983/shell-assistant"
+Repository = "https://github.com/zeddius1983/shell-assistant"
+Issues = "https://github.com/zeddius1983/shell-assistant/issues"
+
 [project.scripts]
 shai = "shai.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["shai"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"shai/shell" = "shai/shell"

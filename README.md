@@ -25,71 +25,66 @@ With tmux, the full screen output (including stderr) is captured. Without tmux, 
 
 ## Installation
 
-### Option A — Python (uv, recommended)
-
-Requires Python 3.9+ and [uv](https://docs.astral.sh/uv/).
+### One-line install (recommended)
 
 ```bash
-uv tool install git+https://github.com/youruser/shai
-
-# Or from a cloned repo:
-git clone https://github.com/youruser/shai
-cd shai
-uv tool install .
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/zeddius1983/shell-assistant/main/install.sh)"
 ```
 
-### Option B — pipx
+This will:
+1. Install [uv](https://docs.astral.sh/uv/) if it isn't already present
+2. Install shai via `uv tool install shai`
+3. Add the shell integration line to your `~/.zshrc` or `~/.bashrc`
+
+Then reload your shell and create your config:
 
 ```bash
-pipx install git+https://github.com/youruser/shai
+source ~/.zshrc      # or ~/.bashrc
+shai /config         # create config and add your API key
 ```
 
-### Option C — Docker (no Python required)
+### Alternative: pipx
 
 ```bash
-docker pull ghcr.io/youruser/shai:latest
-
-# Or build locally:
-git clone https://github.com/youruser/shai
-cd shai
-docker build -t shai:local .
+pipx install shai
 ```
 
----
+Then add shell integration manually — add one of the following to your shell RC file:
 
-## Shell integration
-
-Source the integration script in your shell RC file. This installs the context-capture hook and (for Docker) the `shai` wrapper function.
-
-### Native install (Python/uv/pipx)
-
-**zsh** — add to `~/.zshrc`:
 ```zsh
+# ~/.zshrc
 source "$(shai --shell-path zsh)"
 ```
 
-**bash** — add to `~/.bashrc`:
 ```bash
+# ~/.bashrc
 source "$(shai --shell-path bash)"
 ```
 
-### Docker install
+### Alternative: Docker (no Python required)
 
-**zsh** — add to `~/.zshrc`:
-```zsh
-export SHAI_IMAGE="ghcr.io/youruser/shai:latest"  # or shai:local
-source /path/to/shai/shell/shai-docker.sh
+```bash
+docker pull ghcr.io/zeddius1983/shell-assistant:latest
+
+# Or build locally:
+git clone https://github.com/zeddius1983/shell-assistant
+cd shell-assistant
+docker build -t shai:local .
 ```
 
-**bash** — add to `~/.bashrc`:
+Add to `~/.zshrc` or `~/.bashrc`:
+
 ```bash
-export SHAI_IMAGE="ghcr.io/youruser/shai:latest"
-source /path/to/shai/shell/shai-docker.sh
+export SHAI_IMAGE="ghcr.io/zeddius1983/shell-assistant:latest"  # or shai:local
+source /path/to/shell-assistant/shell/shai-docker.sh
 ```
 
-Then reload your shell:
+### Alternative: build from source
+
 ```bash
-source ~/.zshrc   # or ~/.bashrc
+git clone https://github.com/zeddius1983/shell-assistant
+cd shell-assistant
+uv tool install .
 ```
 
 ---
@@ -318,24 +313,28 @@ source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh
 
 ---
 
-## Building from source
+## Development
 
 ```bash
-git clone https://github.com/youruser/shai
-cd shai
+git clone https://github.com/zeddius1983/shell-assistant
+cd shell-assistant
 
 # Install dev environment
 uv sync
 
-# Run directly
+# Run directly without installing
 .venv/bin/shai --help
 
 # Build a wheel
 uv build
 # → dist/shai-0.1.0-py3-none-any.whl
+```
 
-# Build Docker image
-docker build -t shai:local .
+### Publishing to PyPI
+
+```bash
+uv build
+uv publish
 ```
 
 ### Publishing to GitHub Container Registry
@@ -345,11 +344,5 @@ Push to `main` or create a version tag — the included GitHub Actions workflow 
 ```bash
 git tag v0.1.0
 git push origin v0.1.0
-# → ghcr.io/youruser/shai:0.1.0 and :latest
-```
-
-Or push manually:
-```bash
-docker build -t ghcr.io/youruser/shai:latest .
-docker push ghcr.io/youruser/shai:latest
+# → ghcr.io/zeddius1983/shell-assistant:0.1.0 and :latest
 ```
