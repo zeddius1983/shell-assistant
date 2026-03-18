@@ -243,8 +243,13 @@ _shai() {
 # noglob prevents zsh from expanding ?, *, ! etc. before passing args to shai
 alias shai='noglob _shai'
 
-# Highlight shai subcommands when zsh-syntax-highlighting is active
-if [ -n "$ZSH_VERSION" ] && (( ${+ZSH_HIGHLIGHT_HIGHLIGHTERS} )); then
-    ZSH_HIGHLIGHT_PATTERNS+=('shai help'    'fg=yellow,bold')
-    ZSH_HIGHLIGHT_PATTERNS+=('shai do '     'fg=green,bold')
+# Highlight shai subcommands when zsh-syntax-highlighting is active.
+# Ensures the 'pattern' highlighter is enabled (it's off by default).
+# These variables are no-ops if zsh-syntax-highlighting is not installed.
+if [ -n "$ZSH_VERSION" ]; then
+    : "${ZSH_HIGHLIGHT_HIGHLIGHTERS:=(main)}"
+    [[ " ${ZSH_HIGHLIGHT_HIGHLIGHTERS[*]} " != *" pattern "* ]] \
+        && ZSH_HIGHLIGHT_HIGHLIGHTERS+=(pattern)
+    ZSH_HIGHLIGHT_PATTERNS+=('shai help' 'fg=yellow,bold')
+    ZSH_HIGHLIGHT_PATTERNS+=('shai do '  'fg=green,bold')
 fi
