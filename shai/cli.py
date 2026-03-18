@@ -132,8 +132,9 @@ def main(ctx, query, no_context, raw, provider, model, shell_path):
     elif is_help:
         context = get_context(cfg.context_lines)
     else:
-        # For questions, only use context if it was explicitly piped in
-        context = get_context(cfg.context_lines) if not sys.stdin.isatty() else None
+        # For questions, only use context if explicitly piped (real FIFO/file on stdin)
+        from .context import _stdin_has_data
+        context = get_context(cfg.context_lines) if _stdin_has_data() else None
 
     if context is None and not no_context and is_help:
         err_console.print(
