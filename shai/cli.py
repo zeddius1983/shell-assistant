@@ -11,6 +11,7 @@ from rich.markdown import Markdown
 from rich.text import Text
 
 from .config import load_config, save_default_config, CONFIG_PATH, DO_SYSTEM_PROMPT
+from .system_info import format_for_prompt
 from .context import get_context
 from .providers import get_provider
 
@@ -130,7 +131,8 @@ def main(ctx, query, no_context, raw, provider, model, shell_path):
             err_console.print("[red]Usage:[/red] shai do <task description>")
             sys.exit(1)
         try:
-            stream_response(DO_SYSTEM_PROMPT, task, cfg, raw=True)
+            system = DO_SYSTEM_PROMPT + "\n\n" + format_for_prompt()
+            stream_response(system, task, cfg, raw=True)
         except Exception as e:
             err_console.print(f"[red]Error:[/red] {e}")
             sys.exit(1)
@@ -164,7 +166,8 @@ def main(ctx, query, no_context, raw, provider, model, shell_path):
     prompt = build_prompt(question, context)
 
     try:
-        stream_response(cfg.system_prompt, prompt, cfg, raw=raw)
+        system = cfg.system_prompt + "\n\n" + format_for_prompt()
+        stream_response(system, prompt, cfg, raw=raw)
     except Exception as e:
         err_console.print(f"[red]Error:[/red] {e}")
         sys.exit(1)
