@@ -57,7 +57,13 @@ _shai() {
         "$SHAI_IMAGE"
     )
 
-    if command -v glow > /dev/null 2>&1; then
+    # Check if --raw or -r was passed
+    local _raw=0
+    for _arg in "$@"; do
+        [ "$_arg" = "--raw" ] || [ "$_arg" = "-r" ] && _raw=1 && break
+    done
+
+    if [ "$_raw" -eq 0 ] && command -v glow > /dev/null 2>&1; then
         "${_cmd[@]}" "$@" | glow -
     else
         "${_cmd[@]}" "$@"
