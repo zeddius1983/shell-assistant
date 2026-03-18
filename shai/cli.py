@@ -28,11 +28,18 @@ def build_prompt(question: str, context: Optional[str]) -> str:
     return question
 
 
-def stream_response(system: str, prompt: str, cfg) -> None:
+def stream_response(system: str, prompt: str, cfg, raw: bool = False) -> None:
     provider = get_provider(cfg.get_active_provider())
     buffer = ""
 
-    if shutil.which("glow"):
+    if raw:
+        try:
+            for chunk in provider.stream(system, prompt):
+                print(chunk, end="", flush=True)
+        except KeyboardInterrupt:
+            pass
+        print()
+    elif shutil.which("glow"):
         # Buffer with a spinner, then render with glow
         try:
             with Live(
@@ -65,6 +72,7 @@ def stream_response(system: str, prompt: str, cfg) -> None:
 )
 @click.argument("query", nargs=-1)
 @click.option("--no-context", is_flag=True, help="Do not attach terminal context.")
+@click.option("--raw", "-r", is_flag=True, help="Stream raw text, disabling glow and rich rendering.")
 @click.option("--provider", "-p", default=None, help="Override the active provider.")
 @click.option("--model", "-m", default=None, help="Override the model.")
 @click.option(
@@ -74,7 +82,7 @@ def stream_response(system: str, prompt: str, cfg) -> None:
     help="Print path to shell integration script (for sourcing).",
 )
 @click.pass_context
-def main(ctx, query, no_context, provider, model, shell_path):
+def main(ctx, query, no_context, raw, provider, model, shell_path):
     """shai — Shell AI assistant.
 
     \b
@@ -137,7 +145,7 @@ def main(ctx, query, no_context, provider, model, shell_path):
     prompt = build_prompt(question, context)
 
     try:
-        stream_response(cfg.system_prompt, prompt, cfg)
+        stream_response(cfg.system_prompt, prompt, cfg, raw=raw)
     except Exception as e:
         err_console.print(f"[red]Error:[/red] {e}")
         sys.exit(1)
