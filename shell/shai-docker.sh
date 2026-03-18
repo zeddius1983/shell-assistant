@@ -247,7 +247,6 @@ alias shai='noglob _shai'
 # Ensures the 'pattern' highlighter is enabled (it's off by default).
 # These variables are no-ops if zsh-syntax-highlighting is not installed.
 if [ -n "$ZSH_VERSION" ]; then
-    : "${ZSH_HIGHLIGHT_HIGHLIGHTERS:=(main)}"
     [[ " ${ZSH_HIGHLIGHT_HIGHLIGHTERS[*]} " != *" pattern "* ]] \
         && ZSH_HIGHLIGHT_HIGHLIGHTERS+=(pattern)
     ZSH_HIGHLIGHT_PATTERNS+=('shai help' 'fg=yellow,bold')
