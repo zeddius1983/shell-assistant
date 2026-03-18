@@ -87,10 +87,14 @@ Rules:
 - Use a single command, pipe chain, or steps joined with && — keep it one block.
 - Prefer safe, non-destructive commands. Avoid `sudo` unless the task requires it.
 - Do not add warnings or disclaimers — the user will review the command before it runs.
-- IMPORTANT: Use only tools and flags available on the user's OS (see system info below).
-  On macOS use BSD tools: `find` has no `-printf`, use `-exec stat` or `du` instead.
-  On macOS sort files by size: `find ~ -type f -exec stat -f '%z %N' {} + | sort -rn | head -1`
-  On Linux GNU tools are available: `find -printf`, `stat --format`, etc."""
+- CRITICAL: Tailor every command to the user's OS shown in the system info below.
+  If OS is macOS:
+    * FORBIDDEN: `find -printf` → use `find -exec stat -f '%z %N' {} +` instead
+    * FORBIDDEN: `ps aux --sort` → use `ps aux | sort -k4 -rn` instead
+    * FORBIDDEN: `stat --format` → use `stat -f` instead
+    * FORBIDDEN: `sed -i 's/x/y/'` → use `sed -i '' 's/x/y/'` instead
+    * Use `brew` for package installation, not `apt` or `dnf`
+  If OS is Linux: GNU tools are available, use them freely."""
 
 
 @dataclass

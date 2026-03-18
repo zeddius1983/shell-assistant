@@ -146,8 +146,26 @@ _shai_do() {
         *"sudo "*|*" dd "*|*"dd if"*|*"mkfs"*|*"| sh"*|*"| bash"*|*"chmod -R"*|*"chown -R"*) dangerous=1 ;;
     esac
 
+    # Warn on macOS-incompatible GNU patterns the LLM may have generated
+    local compat_warn=""
+    if [ "$(uname)" = "Darwin" ]; then
+        case "$extracted_cmd" in
+            *"-printf"*)    compat_warn='find -printf is GNU only. Use -exec stat -f instead.' ;;
+        esac
+        case "$extracted_cmd" in
+            *"--sort="*)    compat_warn='ps --sort is GNU only. Use ps aux | sort -k4 -rn instead.' ;;
+        esac
+        case "$extracted_cmd" in
+            *"sed -i '"*)   compat_warn="sed -i requires an empty string on macOS: sed -i '' ..." ;;
+        esac
+        case "$extracted_cmd" in
+            *"stat --format"*) compat_warn='stat --format is GNU only. Use stat -f on macOS.' ;;
+        esac
+    fi
+
     printf '\n'
     [ "$dangerous" -eq 1 ] && printf '\033[33m⚠  Warning: command may be destructive\033[0m\n'
+    [ -n "$compat_warn" ] && printf '\033[33m⚠  Compatibility: %s\033[0m\n' "$compat_warn"
     printf '\033[1mRun? [Y/e/n]\033[0m  '
 
     local answer
