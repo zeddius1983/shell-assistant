@@ -33,9 +33,15 @@ RUN mkdir -p /etc/apt/keyrings \
 # starship
 RUN curl -sS https://starship.rs/install.sh | sh -s -- --yes
 
+# shai
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && /root/.local/bin/uv tool install git+https://github.com/zeddius1983/shell-assistant.git --refresh
+
 # zsh config
 RUN echo 'source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh' >> /root/.zshrc \
     && echo 'source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh' >> /root/.zshrc \
-    && echo 'eval "$(starship init zsh)"' >> /root/.zshrc
+    && echo 'eval "$(starship init zsh)"' >> /root/.zshrc \
+    && echo 'export PATH="$HOME/.local/bin:$PATH"' >> /root/.zshrc \
+    && echo 'source "$(/root/.local/bin/shai --shell-path zsh)"' >> /root/.zshrc
 
 CMD ["zsh"]
