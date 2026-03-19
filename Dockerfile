@@ -8,6 +8,7 @@ RUN pip install --no-cache-dir hatchling && \
     pip install --no-cache-dir click httpx pyyaml rich
 
 # Copy source
+COPY README.md .
 COPY shai/ shai/
 
 # Install shai

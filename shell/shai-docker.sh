@@ -44,6 +44,8 @@ _shai_collect_host_info() {
         command -v "$_m" > /dev/null 2>&1 && _pkg="${_pkg:+$_pkg, }$_m"
     done
     export SHAI_HOST_PKG="$_pkg"
+    export SHAI_HOST_CONFIG_DIR="$_shai_config_dir"
+    export SHAI_HOST_CACHE_DIR="$_shai_cache_dir"
 }
 _shai_collect_host_info
 
@@ -93,6 +95,8 @@ _shai_docker_cmd() {
         -e SHAI_HOST_SHELL
         -e SHAI_HOST_MEM
         -e SHAI_HOST_PKG
+        -e SHAI_HOST_CONFIG_DIR
+        -e SHAI_HOST_CACHE_DIR
         -v "${_shai_config_dir}:/root/.config/shai:ro"
         -v "${_shai_cache_dir}:/root/.cache/shai:ro"
         "$SHAI_IMAGE"
@@ -111,6 +115,8 @@ _shai_do() {
         -e SHAI_HOST_SHELL
         -e SHAI_HOST_MEM
         -e SHAI_HOST_PKG
+        -e SHAI_HOST_CONFIG_DIR
+        -e SHAI_HOST_CACHE_DIR
         -v "${_shai_config_dir}:/root/.config/shai:ro"
         -v "${_shai_cache_dir}:/root/.cache/shai:ro"
         "$SHAI_IMAGE"
@@ -198,6 +204,13 @@ _shai_do() {
 _shai() {
     mkdir -p "$_shai_config_dir" "$_shai_cache_dir"
 
+    # Capture fresh context right now — before Docker starts and before any shai
+    # output appears on screen. This prevents the context from going stale when
+    # the user only runs shai commands (the precmd hook skips those).
+    if [ -n "$TMUX" ]; then
+        tmux capture-pane -p -S -200 2>/dev/null > "$_shai_context_file"
+    fi
+
     # Dispatch 'do' subcommand to host-side executor
     if [ "$1" = "do" ]; then
         shift
@@ -216,6 +229,8 @@ _shai() {
         -e SHAI_HOST_SHELL
         -e SHAI_HOST_MEM
         -e SHAI_HOST_PKG
+        -e SHAI_HOST_CONFIG_DIR
+        -e SHAI_HOST_CACHE_DIR
         -v "${_shai_config_dir}:/root/.config/shai:ro"
         -v "${_shai_cache_dir}:/root/.cache/shai:ro"
         "$SHAI_IMAGE"
