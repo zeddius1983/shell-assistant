@@ -1,3 +1,4 @@
+import re
 import shutil
 import subprocess
 import sys
@@ -25,6 +26,13 @@ import os as _os
 _term_width = _os.get_terminal_size().columns if _os.isatty(1) else 120
 console = Console(width=_term_width)
 err_console = Console(stderr=True, width=_term_width)
+
+
+def _unwrap_markdown_fence(text: str) -> str:
+    """Strip outer ```markdown``` wrapper some models add around their entire response."""
+    stripped = text.strip()
+    match = re.match(r'^```(?:markdown)?\n(.*?)```\s*$', stripped, re.DOTALL)
+    return match.group(1) if match else text
 
 
 def build_prompt(question: str, context: Optional[str]) -> str:
@@ -64,7 +72,8 @@ def stream_response(system: str, prompt: str, cfg, raw: bool = False) -> None:
         except KeyboardInterrupt:
             pass
         if buffer:
-            subprocess.run(["glow", "-"], input=textwrap.dedent(buffer).encode(), check=False)
+            rendered = textwrap.dedent(_unwrap_markdown_fence(buffer))
+            subprocess.run(["glow", "-"], input=rendered.encode(), check=False)
     else:
         # Fallback: live rich markdown rendering
         try:
