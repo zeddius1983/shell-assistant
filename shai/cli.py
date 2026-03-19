@@ -1,6 +1,8 @@
+import re
 import shutil
 import subprocess
 import sys
+import textwrap
 from pathlib import Path
 from typing import Optional
 
@@ -24,6 +26,43 @@ import os as _os
 _term_width = _os.get_terminal_size().columns if _os.isatty(1) else 120
 console = Console(width=_term_width)
 err_console = Console(stderr=True, width=_term_width)
+
+
+def _edit_inline(command: str) -> str:
+    """Open command for inline editing with readline pre-fill."""
+    import platform, shlex, tempfile, os as _os
+    if platform.system() == "Linux":
+        # bash read -e -i pre-fills readline buffer reliably on Linux
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            tmpfile = f.name
+        try:
+            script = f'read -e -i {shlex.quote(command)} -p "$ " _cmd; printf "%s" "$_cmd" > {shlex.quote(tmpfile)}'
+            subprocess.run(["bash", "-c", script])
+            result = open(tmpfile).read().strip()
+            return result if result else command
+        finally:
+            _os.unlink(tmpfile)
+    else:
+        try:
+            import readline
+            def _hook():
+                readline.insert_text(command)
+                readline.redisplay()
+            readline.set_pre_input_hook(_hook)
+            try:
+                return input("$ ").strip() or command
+            finally:
+                readline.set_pre_input_hook(None)
+        except (ImportError, OSError):
+            edited = click.edit(command)
+            return edited.strip() if edited else command
+
+
+def _unwrap_markdown_fence(text: str) -> str:
+    """Strip outer ```markdown``` wrapper some models add around their entire response."""
+    stripped = text.strip()
+    match = re.match(r'^```(?:markdown)?\n(.*?)```\s*$', stripped, re.DOTALL)
+    return match.group(1) if match else text
 
 
 def build_prompt(question: str, context: Optional[str]) -> str:
@@ -63,7 +102,8 @@ def stream_response(system: str, prompt: str, cfg, raw: bool = False) -> None:
         except KeyboardInterrupt:
             pass
         if buffer:
-            subprocess.run(["glow", "-"], input=buffer.encode(), check=False)
+            rendered = textwrap.dedent(_unwrap_markdown_fence(buffer))
+            subprocess.run(["glow", "-"], input=rendered.encode(), check=False)
     else:
         # Fallback: live rich markdown rendering
         try:
@@ -145,7 +185,43 @@ def main(ctx, query, no_context, raw, provider, model, shell_path):
             sys.exit(1)
         try:
             system = DO_SYSTEM_PROMPT + "\n\n" + format_for_prompt()
-            stream_response(system, task, cfg, raw=True)
+            provider = get_provider(cfg.get_active_provider())
+            buffer = ""
+            with Live(
+                Text("  thinking…", style="dim"),
+                console=console,
+                refresh_per_second=12,
+                transient=True,
+            ) as live:
+                for chunk in provider.stream(system, task):
+                    buffer += chunk
+                    live.update(Text(f"  thinking… ({len(buffer.split())} words)", style="dim"))
+
+            # Extract bash command and explanation from response
+            cleaned = textwrap.dedent(_unwrap_markdown_fence(buffer))
+            match = re.search(r'```bash\n(.*?)```', cleaned, re.DOTALL)
+            if not match:
+                console.print(cleaned)
+                return
+            command = match.group(1).strip()
+            explanation = cleaned[:match.start()].strip()
+
+            if explanation:
+                console.print(explanation)
+            console.print(Panel(Syntax(command, "bash", theme="ansi_dark"), border_style="cyan"))
+
+            while True:
+                choice = click.prompt("Run this command? [Y/n/e]", default="y").strip().lower()
+                if choice in ("y", ""):
+                    subprocess.run(["bash", "-c", command])
+                    break
+                elif choice == "n":
+                    break
+                elif choice == "e":
+                    command = _edit_inline(command)
+                    console.print(Panel(Syntax(command, "bash", theme="ansi_dark"), border_style="cyan"))
+                else:
+                    console.print("[dim]Enter y, n, or e[/dim]")
         except Exception as e:
             err_console.print(f"[red]Error:[/red] {e}")
             sys.exit(1)

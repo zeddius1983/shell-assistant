@@ -1,5 +1,7 @@
 # shai — Shell AI
 
+![Built with AI assistance](https://img.shields.io/badge/Built%20with-AI%20assistance-blueviolet?logo=openai&logoColor=white)
+
 LLM-powered assistant for your terminal. Get contextual help from your local or cloud LLM based on what just happened in your shell — errors, failed commands, unexpected output.
 
 Inspired by [PEEL](https://github.com/lemonade-sdk/peel) for PowerShell.
@@ -104,6 +106,10 @@ shai how do I find which process is using port 8080
 shai do find the largest file in ~/Downloads
 shai do show disk usage by folder in /var
 shai do list all listening ports
+
+# Tip: quote the task if it contains apostrophes or special characters
+shai do "show all files modified in the last week"
+shai do "find the largest file and show it's size in MB"
 
 # Pipe output directly (no shell hook needed)
 kubectl get pods 2>&1 | shai
