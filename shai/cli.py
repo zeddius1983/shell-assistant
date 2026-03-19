@@ -1,3 +1,4 @@
+import os
 import shutil
 import subprocess
 import sys
@@ -63,7 +64,11 @@ def stream_response(system: str, prompt: str, cfg, raw: bool = False) -> None:
         except KeyboardInterrupt:
             pass
         if buffer:
-            subprocess.run(["glow", "-"], input=buffer.encode(), check=False)
+            try:
+                width = os.get_terminal_size().columns
+            except OSError:
+                width = 80
+            subprocess.run(["glow", f"--width={width}", "-"], input=buffer.encode(), check=False)
     else:
         # Fallback: live rich markdown rendering
         try:
