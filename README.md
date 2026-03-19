@@ -107,6 +107,10 @@ shai do find the largest file in ~/Downloads
 shai do show disk usage by folder in /var
 shai do list all listening ports
 
+# Tip: quote the task if it contains apostrophes or special characters
+shai do "show all files modified in the last week"
+shai do "find the largest file and show it's size in MB"
+
 # Pipe output directly (no shell hook needed)
 kubectl get pods 2>&1 | shai
 journalctl -xe | shai why is nginx failing
