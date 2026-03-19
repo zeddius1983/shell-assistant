@@ -30,20 +30,32 @@ err_console = Console(stderr=True, width=_term_width)
 
 def _edit_inline(command: str) -> str:
     """Open command for inline editing with readline pre-fill."""
-    try:
-        import readline
-        def _hook():
-            readline.insert_text(command)
-            readline.redisplay()
-        readline.set_pre_input_hook(_hook)
+    import platform, shlex, tempfile, os as _os
+    if platform.system() == "Linux":
+        # bash read -e -i pre-fills readline buffer reliably on Linux
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            tmpfile = f.name
         try:
-            return input("$ ").strip()
+            script = f'read -e -i {shlex.quote(command)} -p "$ " _cmd; printf "%s" "$_cmd" > {shlex.quote(tmpfile)}'
+            subprocess.run(["bash", "-c", script])
+            result = open(tmpfile).read().strip()
+            return result if result else command
         finally:
-            readline.set_pre_input_hook(None)
-    except (ImportError, OSError):
-        # Fallback: open in $EDITOR
-        edited = click.edit(command)
-        return edited.strip() if edited else command
+            _os.unlink(tmpfile)
+    else:
+        try:
+            import readline
+            def _hook():
+                readline.insert_text(command)
+                readline.redisplay()
+            readline.set_pre_input_hook(_hook)
+            try:
+                return input("$ ").strip() or command
+            finally:
+                readline.set_pre_input_hook(None)
+        except (ImportError, OSError):
+            edited = click.edit(command)
+            return edited.strip() if edited else command
 
 
 def _unwrap_markdown_fence(text: str) -> str:
