@@ -28,16 +28,44 @@ console = Console(width=_term_width)
 err_console = Console(stderr=True, width=_term_width)
 
 
+def _find_bash4() -> str:
+    """Return path to bash 4+ (supports read -e -i), or empty string."""
+    import re
+    candidates = ["/opt/homebrew/bin/bash", "/usr/local/bin/bash", "bash"]
+    for candidate in candidates:
+        path = shutil.which(candidate)
+        if not path:
+            continue
+        try:
+            out = subprocess.run([path, "--version"], capture_output=True, text=True, timeout=2).stdout
+            m = re.search(r"version (\d+)\.", out)
+            if m and int(m.group(1)) >= 4:
+                return path
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+    return ""
+
+
 def _edit_inline(command: str) -> str:
     """Open command for inline editing with readline pre-fill."""
     import platform, shlex, tempfile, os as _os
-    if platform.system() in ("Linux", "Darwin"):
-        # bash read -e -i pre-fills readline buffer reliably on Linux and macOS
+
+    # bash read -e -i pre-fills the readline buffer reliably.
+    # Linux always has bash 4+; macOS ships bash 3.2 (no -i support) so we
+    # look for a Homebrew bash 4+ first.
+    if platform.system() == "Linux":
+        bash = "bash"
+    elif platform.system() == "Darwin":
+        bash = _find_bash4()
+    else:
+        bash = ""
+
+    if bash:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             tmpfile = f.name
         try:
             script = f'read -e -i {shlex.quote(command)} -p "$ " _cmd; printf "%s" "$_cmd" > {shlex.quote(tmpfile)}'
-            subprocess.run(["bash", "-c", script])
+            subprocess.run([bash, "-c", script])
             result = open(tmpfile).read().strip()
             return result if result else command
         finally:
