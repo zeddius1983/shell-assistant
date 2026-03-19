@@ -1,5 +1,7 @@
 # shai — Shell AI
 
+![Built with AI assistance](https://img.shields.io/badge/Built%20with-AI%20assistance-blueviolet?logo=openai&logoColor=white)
+
 LLM-powered assistant for your terminal. Get contextual help from your local or cloud LLM based on what just happened in your shell — errors, failed commands, unexpected output.
 
 Inspired by [PEEL](https://github.com/lemonade-sdk/peel) for PowerShell.
