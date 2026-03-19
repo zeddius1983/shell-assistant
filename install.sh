@@ -72,7 +72,7 @@ _install_shai() {
     local source="${SHAI_SOURCE:-pypi}"
 
     if [ "$source" = "github" ]; then
-        uv tool install "$GITHUB_PACKAGE" --force
+        uv tool install "$GITHUB_PACKAGE" --force --refresh
     else
         # Try PyPI first; fall back to GitHub if the package isn't published yet
         if uv tool install "$PYPI_PACKAGE" --force 2>/dev/null; then
@@ -81,7 +81,7 @@ _install_shai() {
             warn "PyPI install failed, falling back to GitHub..."
             command -v git >/dev/null 2>&1 \
                 || die "git is required for GitHub install but was not found. Install git and retry."
-            uv tool install "$GITHUB_PACKAGE" --force
+            uv tool install "$GITHUB_PACKAGE" --force --refresh
         fi
     fi
 
