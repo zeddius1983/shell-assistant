@@ -79,6 +79,8 @@ _install_shai() {
             : # success
         else
             warn "PyPI install failed, falling back to GitHub..."
+            command -v git >/dev/null 2>&1 \
+                || die "git is required for GitHub install but was not found. Install git and retry."
             uv tool install "$GITHUB_PACKAGE" --force
         fi
     fi

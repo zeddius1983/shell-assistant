@@ -14,4 +14,8 @@ COPY shai/ shai/
 # Install shai
 RUN pip install --no-cache-dir --no-deps .
 
+# Run as non-root user
+RUN useradd -m shai
+USER shai
+
 ENTRYPOINT ["shai"]
