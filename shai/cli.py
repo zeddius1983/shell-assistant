@@ -32,11 +32,14 @@ def _edit_inline(command: str) -> str:
     """Open command for inline editing with readline pre-fill."""
     try:
         import readline
-        readline.set_startup_hook(lambda: readline.insert_text(command))
+        def _hook():
+            readline.insert_text(command)
+            readline.redisplay()
+        readline.set_pre_input_hook(_hook)
         try:
             return input("$ ").strip()
         finally:
-            readline.set_startup_hook(None)
+            readline.set_pre_input_hook(None)
     except (ImportError, OSError):
         # Fallback: open in $EDITOR
         edited = click.edit(command)
