@@ -60,30 +60,40 @@ def _edit_inline(command: str) -> str:
     else:
         bash = ""
 
-    if bash:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            tmpfile = f.name
-        try:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        tmpfile = f.name
+    try:
+        if bash:
             script = f'read -e -i {shlex.quote(command)} -p "$ " _cmd; printf "%s" "$_cmd" > {shlex.quote(tmpfile)}'
             subprocess.run([bash, "-c", script])
+        elif platform.system() == "Darwin":
+            # macOS without bash 4+: use zsh vared (always available, uses ZLE)
+            script = f'_v={shlex.quote(command)}; vared -p "$ " _v; printf "%s" "$_v" > {shlex.quote(tmpfile)}'
+            subprocess.run(["/bin/zsh", "--no-rcs", "-i", "-c", script])
+        else:
+            _os.unlink(tmpfile)
+            tmpfile = None
+            try:
+                import readline
+                def _hook():
+                    readline.insert_text(command)
+                    readline.redisplay()
+                readline.set_pre_input_hook(_hook)
+                try:
+                    return input("$ ").strip() or command
+                finally:
+                    readline.set_pre_input_hook(None)
+            except (ImportError, OSError):
+                edited = click.edit(command)
+                return edited.strip() if edited else command
+
+        if tmpfile:
             result = open(tmpfile).read().strip()
             return result if result else command
-        finally:
+        return command
+    finally:
+        if tmpfile and _os.path.exists(tmpfile):
             _os.unlink(tmpfile)
-    else:
-        try:
-            import readline
-            def _hook():
-                readline.insert_text(command)
-                readline.redisplay()
-            readline.set_pre_input_hook(_hook)
-            try:
-                return input("$ ").strip() or command
-            finally:
-                readline.set_pre_input_hook(None)
-        except (ImportError, OSError):
-            edited = click.edit(command)
-            return edited.strip() if edited else command
 
 
 def _unwrap_markdown_fence(text: str) -> str:
