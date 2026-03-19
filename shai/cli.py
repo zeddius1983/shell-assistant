@@ -31,8 +31,8 @@ err_console = Console(stderr=True, width=_term_width)
 def _edit_inline(command: str) -> str:
     """Open command for inline editing with readline pre-fill."""
     import platform, shlex, tempfile, os as _os
-    if platform.system() == "Linux":
-        # bash read -e -i pre-fills readline buffer reliably on Linux
+    if platform.system() in ("Linux", "Darwin"):
+        # bash read -e -i pre-fills readline buffer reliably on Linux and macOS
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             tmpfile = f.name
         try:
