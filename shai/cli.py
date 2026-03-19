@@ -28,6 +28,21 @@ console = Console(width=_term_width)
 err_console = Console(stderr=True, width=_term_width)
 
 
+def _edit_inline(command: str) -> str:
+    """Open command for inline editing with readline pre-fill."""
+    try:
+        import readline
+        readline.set_startup_hook(lambda: readline.insert_text(command))
+        try:
+            return input("$ ").strip()
+        finally:
+            readline.set_startup_hook(None)
+    except (ImportError, OSError):
+        # Fallback: open in $EDITOR
+        edited = click.edit(command)
+        return edited.strip() if edited else command
+
+
 def _unwrap_markdown_fence(text: str) -> str:
     """Strip outer ```markdown``` wrapper some models add around their entire response."""
     stripped = text.strip()
@@ -188,9 +203,7 @@ def main(ctx, query, no_context, raw, provider, model, shell_path):
                 elif choice == "n":
                     break
                 elif choice == "e":
-                    edited = click.edit(command)
-                    if edited is not None:
-                        command = edited.strip()
+                    command = _edit_inline(command)
                     console.print(Panel(Syntax(command, "bash", theme="ansi_dark"), border_style="cyan"))
                 else:
                     console.print("[dim]Enter y, n, or e[/dim]")
