@@ -155,7 +155,34 @@ def main(ctx, query, no_context, raw, provider, model, shell_path):
             sys.exit(1)
         try:
             system = DO_SYSTEM_PROMPT + "\n\n" + format_for_prompt()
-            stream_response(system, task, cfg, raw=True)
+            provider = get_provider(cfg.get_active_provider())
+            buffer = ""
+            with Live(
+                Text("  thinking…", style="dim"),
+                console=console,
+                refresh_per_second=12,
+                transient=True,
+            ) as live:
+                for chunk in provider.stream(system, task):
+                    buffer += chunk
+                    live.update(Text(f"  thinking… ({len(buffer.split())} words)", style="dim"))
+
+            # Extract bash command and explanation from response
+            cleaned = textwrap.dedent(_unwrap_markdown_fence(buffer))
+            match = re.search(r'```bash\n(.*?)```', cleaned, re.DOTALL)
+            if not match:
+                console.print(cleaned)
+                return
+            command = match.group(1).strip()
+            explanation = cleaned[:match.start()].strip()
+
+            if explanation:
+                console.print(explanation)
+            console.print(Panel(Syntax(command, "bash", theme="ansi_dark"), border_style="cyan"))
+
+            if not click.confirm("Run this command?", default=False):
+                return
+            subprocess.run(["bash", "-c", command])
         except Exception as e:
             err_console.print(f"[red]Error:[/red] {e}")
             sys.exit(1)
