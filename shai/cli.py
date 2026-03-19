@@ -180,7 +180,7 @@ def main(ctx, query, no_context, raw, provider, model, shell_path):
                 console.print(explanation)
             console.print(Panel(Syntax(command, "bash", theme="ansi_dark"), border_style="cyan"))
 
-            if not click.confirm("Run this command?", default=False):
+            if not click.confirm("Run this command?", default=True):
                 return
             subprocess.run(["bash", "-c", command])
         except Exception as e:
