@@ -180,9 +180,20 @@ def main(ctx, query, no_context, raw, provider, model, shell_path):
                 console.print(explanation)
             console.print(Panel(Syntax(command, "bash", theme="ansi_dark"), border_style="cyan"))
 
-            if not click.confirm("Run this command?", default=True):
-                return
-            subprocess.run(["bash", "-c", command])
+            while True:
+                choice = click.prompt("Run this command? [Y/n/e]", default="y").strip().lower()
+                if choice in ("y", ""):
+                    subprocess.run(["bash", "-c", command])
+                    break
+                elif choice == "n":
+                    break
+                elif choice == "e":
+                    edited = click.edit(command)
+                    if edited is not None:
+                        command = edited.strip()
+                    console.print(Panel(Syntax(command, "bash", theme="ansi_dark"), border_style="cyan"))
+                else:
+                    console.print("[dim]Enter y, n, or e[/dim]")
         except Exception as e:
             err_console.print(f"[red]Error:[/red] {e}")
             sys.exit(1)
