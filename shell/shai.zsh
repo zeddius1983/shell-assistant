@@ -45,56 +45,82 @@ add-zsh-hook precmd _shai_save_context
 # Configuration via environment variables:
 #   SHAI_AC_KEY          Key binding (default: ^@ = Ctrl+Space)
 #   SHAI_AC_COUNT        Number of suggestions (default: 3, or from config)
-#   SHAI_AC_DEBOUNCE     Set to 1 to enable debounce mode (requires zsh 5.8+)
+#   SHAI_AC_DEBOUNCE     Set to 1 to enable debounce mode
 #   SHAI_AC_DEBOUNCE_MS  Debounce delay in ms (default: 1500)
 #
 # UX:
-#   First press  → fetch suggestions; show #1 as inline ghost text (→ accepts)
+#   First press  → fetch suggestions async; show ⟳ then ghost text (→ accepts)
 #   Second press → open fzf picker with all suggestions
-#   Typing       → clears ghost text
+#   Typing       → clears ghost text / cancels in-flight fetch
 # ──────────────────────────────────────────────────────────────────────────────
 if [[ -n "$SHAI_AUTOCOMPLETE" ]] && command -v shai >/dev/null 2>&1; then
 
-  typeset -g _shai_ac_suggestions=()
-  typeset -g _shai_ac_query=""
-  typeset -g _shai_ac_active=0   # 1 while ghost text is ours
+  typeset -g  _shai_ac_suggestions=()
+  typeset -g  _shai_ac_query=""
+  typeset -gi _shai_ac_active=0        # 1 when POSTDISPLAY is ours
+  typeset -gi _shai_ac_fd=-1           # fd for in-flight fetch
+  typeset -gi _shai_ac_debounce_fd=-1  # fd for debounce sleep
+
+  # ── async response handler ───────────────────────────────────────────────────
+  _shai_ac_handle_response() {
+    local fd=$1 raw
+    raw=$(cat <&$fd 2>/dev/null)
+    zle -F $fd 2>/dev/null
+    exec {fd}<&-
+    _shai_ac_fd=-1
+
+    # Discard if the user changed the buffer while we were fetching
+    if [[ "$BUFFER" != "$_shai_ac_query" ]]; then
+      POSTDISPLAY=""
+      _shai_ac_active=0
+      zle -R
+      return
+    fi
+
+    POSTDISPLAY=""
+    _shai_ac_suggestions=()
+
+    if [[ -n "$raw" ]]; then
+      _shai_ac_suggestions=("${(@f)raw}")
+      local first="${_shai_ac_suggestions[1]}"
+      if [[ "$first" == "$_shai_ac_query"* ]]; then
+        POSTDISPLAY="${first#"$_shai_ac_query"}"
+      fi
+    fi
+
+    # Keep _shai_ac_active=1 so forward-char / second press still work
+    zle -R
+  }
 
   # ── main widget ─────────────────────────────────────────────────────────────
   _shai_ac_widget() {
     local query="$BUFFER"
     [[ -z "$query" ]] && return
 
-    # Second press on the same buffer → open fzf picker
-    if (( _shai_ac_active )) && [[ "$query" == "$_shai_ac_query" ]]; then
+    # Second press on same query with results ready → open fzf
+    if (( _shai_ac_active )) && [[ "$query" == "$_shai_ac_query" ]] \
+        && (( ${#_shai_ac_suggestions[@]} > 0 )); then
       _shai_ac_fzf
       return
     fi
 
-    # Clear any previous ghost text we own
-    if (( _shai_ac_active )); then
-      POSTDISPLAY=""
-      _shai_ac_active=0
-      _shai_ac_suggestions=()
+    # Cancel any in-flight fetch
+    if (( _shai_ac_fd >= 0 )); then
+      zle -F $_shai_ac_fd 2>/dev/null
+      exec {_shai_ac_fd}<&-
+      _shai_ac_fd=-1
     fi
 
-    # Fetch suggestions — stderr suppressed so errors never corrupt the prompt
-    local raw
-    raw=$(shai complete --count "${SHAI_AC_COUNT:-3}" -- "$query" 2>/dev/null)
-    [[ -z "$raw" ]] && return
-
-    _shai_ac_suggestions=("${(@f)raw}")
-    _shai_ac_query="$query"
+    # Reset state and show thinking indicator while fetch runs
     _shai_ac_active=1
-
-    # Display the first suggestion as ghost text (the suffix after what's typed)
-    local first="${_shai_ac_suggestions[1]}"
-    if [[ "$first" == "$query"* ]]; then
-      POSTDISPLAY="${first#"$query"}"
-    else
-      POSTDISPLAY=""
-    fi
-
+    _shai_ac_suggestions=()
+    _shai_ac_query="$query"
+    POSTDISPLAY=" ⟳"
     zle -R
+
+    # Launch async fetch — ZLE stays responsive while this runs in the background
+    exec {_shai_ac_fd}< <(shai complete --count "${SHAI_AC_COUNT:-3}" -- "$query" 2>/dev/null)
+    zle -F $_shai_ac_fd _shai_ac_handle_response
   }
 
   # ── accept ghost text ────────────────────────────────────────────────────────
@@ -107,7 +133,6 @@ if [[ -n "$SHAI_AUTOCOMPLETE" ]] && command -v shai >/dev/null 2>&1; then
     _shai_ac_query=""
   }
 
-  # → accepts ghost text when cursor is at the end; otherwise moves normally
   _shai_ac_forward_char() {
     if (( _shai_ac_active )) && [[ -n "$POSTDISPLAY" ]] && (( CURSOR == ${#BUFFER} )); then
       _shai_ac_accept
@@ -116,7 +141,6 @@ if [[ -n "$SHAI_AUTOCOMPLETE" ]] && command -v shai >/dev/null 2>&1; then
     fi
   }
 
-  # End / Ctrl+E accepts ghost text unconditionally
   _shai_ac_end_of_line() {
     if (( _shai_ac_active )) && [[ -n "$POSTDISPLAY" ]]; then
       _shai_ac_accept
@@ -148,8 +172,9 @@ if [[ -n "$SHAI_AUTOCOMPLETE" ]] && command -v shai >/dev/null 2>&1; then
     zle reset-prompt
   }
 
-  # ── clear ghost text when the user types (buffer changes) ───────────────────
+  # ── pre-redraw: clear state and manage debounce on every keypress ────────────
   _shai_ac_pre_redraw() {
+    # Buffer changed — clear our ghost text / thinking indicator
     if (( _shai_ac_active )) && [[ "$BUFFER" != "$_shai_ac_query" ]]; then
       POSTDISPLAY=""
       _shai_ac_active=0
@@ -157,19 +182,53 @@ if [[ -n "$SHAI_AUTOCOMPLETE" ]] && command -v shai >/dev/null 2>&1; then
       _shai_ac_query=""
     fi
 
-    # Debounce mode: schedule autocomplete after a pause in typing (zsh 5.8+)
-    if [[ -n "$SHAI_AC_DEBOUNCE" ]] && (( ${#BUFFER} > 0 )) && ! (( _shai_ac_active )); then
-      zle -t "${SHAI_AC_DEBOUNCE_MS:-1500}" _shai_ac_widget 2>/dev/null || true
+    # Buffer changed while fetch was in-flight — cancel it
+    if (( _shai_ac_fd >= 0 )) && [[ "$BUFFER" != "$_shai_ac_query" ]]; then
+      zle -F $_shai_ac_fd 2>/dev/null
+      exec {_shai_ac_fd}<&-
+      _shai_ac_fd=-1
+    fi
+
+    # Debounce: cancel previous sleep, start a fresh one on every keypress.
+    # When the user pauses, the sleep finishes and fires _shai_ac_debounce_done.
+    if [[ -n "$SHAI_AC_DEBOUNCE" ]]; then
+      if (( _shai_ac_debounce_fd >= 0 )); then
+        zle -F $_shai_ac_debounce_fd 2>/dev/null
+        exec {_shai_ac_debounce_fd}<&-
+        _shai_ac_debounce_fd=-1
+      fi
+      if (( ${#BUFFER} > 0 )) && ! (( _shai_ac_active )) && (( _shai_ac_fd < 0 )); then
+        local delay_s snapshot="$BUFFER"
+        printf -v delay_s '%.3f' "$(( ${SHAI_AC_DEBOUNCE_MS:-1500} / 1000.0 ))"
+        exec {_shai_ac_debounce_fd}< <(sleep "$delay_s" 2>/dev/null; print -r -- "$snapshot")
+        zle -F $_shai_ac_debounce_fd _shai_ac_debounce_done
+      fi
+    fi
+  }
+
+  # ── debounce callback ────────────────────────────────────────────────────────
+  _shai_ac_debounce_done() {
+    local fd=$1 saved_query
+    IFS= read -r -u $fd saved_query 2>/dev/null
+    zle -F $fd 2>/dev/null
+    exec {fd}<&-
+    _shai_ac_debounce_fd=-1
+
+    # Only trigger if buffer hasn't changed since debounce started
+    if [[ -n "$BUFFER" && "$BUFFER" == "$saved_query" ]] \
+        && ! (( _shai_ac_active )) && (( _shai_ac_fd < 0 )); then
+      _shai_ac_widget
     fi
   }
 
   # ── register widgets ─────────────────────────────────────────────────────────
   zle -N _shai_ac_widget
+  zle -N _shai_ac_handle_response
   zle -N _shai_ac_fzf
   zle -N _shai_ac_forward_char
   zle -N _shai_ac_end_of_line
+  zle -N _shai_ac_debounce_done
 
-  # Use add-zle-hook-widget so we coexist with zsh-autosuggestions and others
   autoload -Uz add-zle-hook-widget
   add-zle-hook-widget line-pre-redraw _shai_ac_pre_redraw
 
