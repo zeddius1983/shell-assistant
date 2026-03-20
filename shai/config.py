@@ -106,11 +106,24 @@ class ProviderConfig:
 
 
 @dataclass
+class AutocompleteConfig:
+    enabled: bool = False
+    key: str = "^@"             # default: Ctrl+Space
+    count: int = 3
+    provider: Optional[str] = None  # None → use active provider
+    model: Optional[str] = None     # None → use provider's default model
+    debounce: bool = False
+    debounce_ms: int = 1500
+    history_lines: int = 10
+
+
+@dataclass
 class Config:
     provider: str
     providers: dict
     context_lines: int = 100
     system_prompt: str = SYSTEM_PROMPT
+    autocomplete: AutocompleteConfig = field(default_factory=AutocompleteConfig)
 
     def get_active_provider(self) -> ProviderConfig:
         if self.provider not in self.providers:
@@ -146,11 +159,24 @@ def load_config() -> Config:
     providers.update(data.get("providers", {}))
     merged["providers"] = providers
 
+    ac_raw = merged.get("autocomplete", {})
+    autocomplete = AutocompleteConfig(
+        enabled=ac_raw.get("enabled", False),
+        key=ac_raw.get("key", "^@"),
+        count=ac_raw.get("count", 3),
+        provider=ac_raw.get("provider"),
+        model=ac_raw.get("model"),
+        debounce=ac_raw.get("debounce", False),
+        debounce_ms=ac_raw.get("debounce_ms", 1500),
+        history_lines=ac_raw.get("history_lines", 10),
+    )
+
     return Config(
         provider=merged["provider"],
         providers=merged["providers"],
         context_lines=merged.get("context_lines", 100),
         system_prompt=merged.get("system_prompt", SYSTEM_PROMPT),
+        autocomplete=autocomplete,
     )
 
 

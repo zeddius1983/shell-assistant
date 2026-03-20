@@ -200,6 +200,9 @@ def main(ctx, query, no_context, raw, provider, model, shell_path):
     if args and args[0] == "/stats":
         _cmd_stats(provider, model)
         return
+    if args and args[0] == "complete":
+        _cmd_complete(args[1:])
+        return
 
     try:
         cfg = load_config()
@@ -297,6 +300,54 @@ def main(ctx, query, no_context, raw, provider, model, shell_path):
         stream_response(system, prompt, cfg, raw=raw)
     except Exception as e:
         err_console.print(f"[red]Error:[/red] {e}")
+        sys.exit(1)
+
+
+def _cmd_complete(args: list) -> None:
+    """Output newline-separated command suggestions for a partial command.
+
+    Usage: shai complete [--count N] [--] <partial command>
+
+    Designed to be called by the ZLE widget — all errors are silenced so they
+    never pollute the user's prompt.  Suggestions are printed one per line to
+    stdout.
+    """
+    from .autocomplete import get_suggestions
+
+    # Parse optional --count / -n flag
+    count: Optional[int] = None
+    partial_parts: list = []
+    i = 0
+    while i < len(args):
+        if args[i] in ("--count", "-n") and i + 1 < len(args):
+            try:
+                count = int(args[i + 1])
+            except ValueError:
+                pass
+            i += 2
+        elif args[i] == "--":
+            partial_parts.extend(args[i + 1:])
+            break
+        else:
+            partial_parts.append(args[i])
+            i += 1
+
+    partial = " ".join(partial_parts).strip()
+    if not partial:
+        return
+
+    try:
+        cfg = load_config()
+    except Exception:
+        sys.exit(1)
+
+    effective_count = count if count is not None else cfg.autocomplete.count
+
+    try:
+        suggestions = get_suggestions(partial, cfg, effective_count)
+        for s in suggestions:
+            print(s)
+    except Exception:
         sys.exit(1)
 
 
