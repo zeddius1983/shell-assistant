@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
-# shai installer
+# shai installer / uninstaller
 #
 # Usage:
 #   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/zeddius1983/shell-assistant/main/install.sh)"
+#   /bin/bash -c "$(curl -fsSL ...) " -- --uninstall
 #
-# Options (set as env vars before running):
+# Options (flags):
+#   --uninstall           Remove shai and shell integration from RC files
+#
+# Options (env vars):
 #   SHAI_NO_SHELL_INTEGRATION=1   Skip adding shell integration to RC file
+#   SHAI_PURGE=1                  With --uninstall: also delete config and cache
 #   SHAI_SOURCE=pypi|github       Force install source (default: pypi)
 
 set -euo pipefail
@@ -25,6 +30,15 @@ step() { printf '\n%s %s\n' "$(bold '==>')" "$*"; }
 info() { printf '    %s\n' "$*"; }
 warn() { printf '    %s\n' "$(yellow "Warning: $*")"; }
 die()  { printf '\n%s %s\n\n' "$(red 'Error:')" "$*" >&2; exit 1; }
+
+# Portable in-place sed: handles macOS (BSD sed) and Linux (GNU sed)
+_sed_i() {
+    if sed --version 2>/dev/null | grep -q GNU; then
+        sed -i "$@"
+    else
+        sed -i '' "$@"
+    fi
+}
 
 # ---------- shell detection --------------------------------------------------
 
@@ -64,10 +78,31 @@ _ensure_uv() {
     info "$(green "uv installed")"
 }
 
-# ---------- shai install -----------------------------------------------------
+# ---------- clean up old non-uv installs -------------------------------------
+
+_remove_old_installs() {
+    local removed=0
+
+    # pip / pip3 installs (system Python, Homebrew Python, etc.)
+    for pip_cmd in pip3 pip; do
+        if command -v "$pip_cmd" >/dev/null 2>&1; then
+            if "$pip_cmd" show shai >/dev/null 2>&1; then
+                info "Removing old pip install ($pip_cmd)..."
+                "$pip_cmd" uninstall -y shai 2>/dev/null && removed=1 \
+                    || warn "Could not remove pip install via $pip_cmd — may need sudo"
+            fi
+        fi
+    done
+
+    (( removed )) && info "$(green "Old pip install removed")" || true
+}
+
+# ---------- shai install / uninstall -----------------------------------------
 
 _install_shai() {
     step "Installing shai..."
+
+    _remove_old_installs
 
     local source="${SHAI_SOURCE:-pypi}"
 
@@ -94,13 +129,33 @@ _install_shai() {
     info "$(green "shai installed successfully")"
 }
 
+_uninstall_shai() {
+    step "Uninstalling shai..."
+
+    # uv tool uninstall
+    if command -v uv >/dev/null 2>&1 && uv tool list 2>/dev/null | grep -q '^shai'; then
+        uv tool uninstall shai \
+            && info "$(green "Removed uv tool install")" \
+            || warn "uv tool uninstall failed"
+    else
+        info "No uv tool install found"
+    fi
+
+    # Old pip / pip3 installs
+    _remove_old_installs
+
+    info "$(green "shai uninstalled")"
+}
+
 # ---------- shell integration ------------------------------------------------
 
 _add_shell_integration() {
     local shell="$1"
     local rc="$2"
 
-    local line="source \"\$(shai --shell-path ${shell})\""
+    # 'command shai' bypasses any alias (e.g. old 'alias shai=noglob _shai')
+    # so the source line works correctly even after upgrades.
+    local line="source \"\$(command shai --shell-path ${shell})\""
     local marker="shai --shell-path"
 
     if [ -f "$rc" ] && grep -qF "$marker" "$rc"; then
@@ -112,12 +167,66 @@ _add_shell_integration() {
     info "Added shell integration to $(bold "$rc")"
 }
 
+_remove_shell_integration() {
+    local removed=0
+    for rc in "${ZDOTDIR:-$HOME}/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile"; do
+        [ -f "$rc" ] || continue
+        if grep -qE 'shai --shell-path|# shai shell integration' "$rc"; then
+            # Remove the marker comment and the source line (with or without 'command')
+            _sed_i '/# shai shell integration/d' "$rc"
+            _sed_i '/shai --shell-path/d' "$rc"
+            info "Removed shell integration from $(bold "$rc")"
+            removed=1
+        fi
+    done
+    (( removed )) || info "No shell integration found in RC files"
+}
+
+# ---------- purge config / cache ---------------------------------------------
+
+_purge_data() {
+    step "Purging config and cache..."
+
+    local config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/shai"
+    local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/shai"
+    local mac_cache="$HOME/Library/Caches/shai"
+
+    for dir in "$config_dir" "$cache_dir" "$mac_cache"; do
+        if [ -d "$dir" ]; then
+            rm -rf "$dir" && info "Removed $dir"
+        fi
+    done
+}
+
 # ---------- main -------------------------------------------------------------
 
 main() {
-    printf '\n%s\n' "$(bold 'shai — Shell AI assistant installer')"
+    local mode="install"
+    for arg in "$@"; do
+        case "$arg" in
+            --uninstall) mode="uninstall" ;;
+            *) warn "Unknown option: $arg" ;;
+        esac
+    done
+
+    printf '\n%s\n' "$(bold 'shai — Shell AI assistant')"
     printf '%s\n' "$(dim 'https://github.com/zeddius1983/shell-assistant')"
 
+    if [ "$mode" = "uninstall" ]; then
+        _uninstall_shai
+        _remove_shell_integration
+        if [ "${SHAI_PURGE:-0}" = "1" ]; then
+            _purge_data
+        else
+            info "$(dim "Tip: set SHAI_PURGE=1 to also delete config and cache")"
+        fi
+        printf '\n%s\n\n' "$(green "$(bold '✓ shai uninstalled.')")"
+        printf 'Reload your shell to complete removal:\n'
+        printf '  %s\n\n' "$(bold 'exec $SHELL')"
+        return
+    fi
+
+    # install mode
     _ensure_uv
     _install_shai
 
@@ -130,8 +239,8 @@ main() {
         if [ -z "$shell" ]; then
             warn "Could not detect shell (SHELL='${SHELL:-}')."
             printf '\n  Add one of these lines to your shell RC file manually:\n\n'
-            printf '    %s\n' "$(bold 'source "$(shai --shell-path zsh)"')   # zsh"
-            printf '    %s\n\n' "$(bold 'source "$(shai --shell-path bash)"')  # bash"
+            printf '    %s\n' "$(bold 'source "$(command shai --shell-path zsh)"')   # zsh"
+            printf '    %s\n\n' "$(bold 'source "$(command shai --shell-path bash)"')  # bash"
         else
             rc="$(_rc_file "$shell")"
             step "Setting up shell integration ($shell → $rc)..."
@@ -139,7 +248,6 @@ main() {
         fi
     fi
 
-    # Determine the right RC file for the reload hint
     local shell rc_hint
     shell="$(_detect_shell)"
     rc_hint="${shell:+$(_rc_file "$shell")}"
