@@ -343,7 +343,7 @@ _show_menu() {
   tput civis 2>/dev/null >&"$TTY" || true
   local old_stty
   old_stty="$(stty -g 2>/dev/null < "$TTY" || echo '')"
-  stty raw -echo < "$TTY" > "$TTY" 2>&1 || true
+  stty -echo -icanon min 1 time 0 < "$TTY" 2>&1 || true
 
   _menu_render() {
     printf '\033[%dA' "$((n + 5))" > "$TTY" 2>/dev/null || true
@@ -404,7 +404,7 @@ _show_menu() {
     elif [ "$char" = $'\r' ] || [ "$char" = $'\n' ] || [ "$char" = '' ]; then
       break
     elif [ "$char" = 'q' ]; then
-      stty "$old_stty" < "$TTY" > "$TTY" 2>&1 || true
+      stty "$old_stty" < "$TTY" 2>&1 || true
       tput cnorm 2>/dev/null > "$TTY" || true
       printf '\n\nAborted.\n' > "$TTY"
       exit 0
@@ -412,7 +412,7 @@ _show_menu() {
     _menu_render
   done
 
-  stty "$old_stty" < "$TTY" > "$TTY" 2>&1 || true
+  stty "$old_stty" < "$TTY" 2>&1 || true
   tput cnorm 2>/dev/null > "$TTY" || true
   printf '\n' > "$TTY"
 
