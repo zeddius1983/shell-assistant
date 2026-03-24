@@ -346,7 +346,7 @@ _show_menu() {
   stty -echo -icanon min 1 time 0 < "$TTY" 2>&1 || true
 
   _menu_render() {
-    printf '\033[%dA' "$((n + 5))" > "$TTY" 2>/dev/null || true
+    printf '\033[%dA' "$((n + 7))" > "$TTY" 2>/dev/null || true
     printf '\033[J'  > "$TTY"
 
     printf '\n  %s\n' "$(bold 'Shai Toolbox Setup')" > "$TTY"
@@ -360,16 +360,21 @@ _show_menu() {
       desc="$(echo "${MENU_ENTRIES[$j]}" | cut -d'|' -f3)"
       eval "sel=\$selected_$j"
       local check
-      if [ "$sel" -eq 1 ]; then
-        check="$(green '[x]')"
-      else
-        check='[ ]'
-      fi
       if [ "$j" -eq "$cursor" ]; then
-        printf '  %s %s  %s  %s\n' "$check" "$(bold "▶ $label")" "$(dim '—')" "$(dim "$desc")" > "$TTY"
+        # Focused row: highlight the checkbox in bold cyan regardless of state
+        if [ "$sel" -eq 1 ]; then
+          check="$(bold "$(cyan '[x]')")"
+        else
+          check="$(bold "$(cyan '[ ]')")"
+        fi
       else
-        printf '  %s %s  %s  %s\n' "$check" "$label" "$(dim '—')" "$(dim "$desc")" > "$TTY"
+        if [ "$sel" -eq 1 ]; then
+          check="$(green '[x]')"
+        else
+          check='[ ]'
+        fi
       fi
+      printf '  %s %s  %s  %s\n' "$check" "$label" "$(dim '—')" "$(dim "$desc")" > "$TTY"
       j=$((j + 1))
     done
     printf '\n  %s\n' "$(dim 'SPACE toggle · ENTER confirm · a select all · n deselect all · q quit')" > "$TTY"
@@ -377,7 +382,7 @@ _show_menu() {
 
   # Initial render — print blank lines to reserve space
   printf '\n' > "$TTY"
-  seq 1 $((n + 5)) | while read -r _; do printf '\n' > "$TTY"; done
+  seq 1 $((n + 7)) | while read -r _; do printf '\n' > "$TTY"; done
   _menu_render
 
   while true; do
