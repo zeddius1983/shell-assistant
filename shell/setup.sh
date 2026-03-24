@@ -326,13 +326,13 @@ MENU_ENTRIES=(
 
 _show_menu() {
   local n=${#MENU_ENTRIES[@]}
-  # selected[i]=1 means checked
-  local -a selected=()
-  local i
-  for ((i = 0; i < n; i++)); do
+  # selected_N variables hold 0/1 for each entry
+  local i=0
+  while [ $i -lt $n ]; do
     local default
     default="$(echo "${MENU_ENTRIES[$i]}" | cut -d'|' -f4)"
-    selected[$i]=$default
+    eval "selected_$i=$default"
+    i=$((i + 1))
   done
 
   local cursor=0
@@ -351,23 +351,25 @@ _show_menu() {
     printf '\n  %s\n' "$(bold 'Shai Toolbox Setup')"
     printf '  %s\n\n' "$(dim '──────────────────────────────────────')"
     printf '  %s  %s\n' "$(cyan '[*]')" "$(bold 'shai')  — $(dim 'AI shell assistant (always installed)')"
-    local i
-    for ((i = 0; i < n; i++)); do
-      local key label desc
-      key="$(echo "${MENU_ENTRIES[$i]}" | cut -d'|' -f1)"
-      label="$(echo "${MENU_ENTRIES[$i]}" | cut -d'|' -f2)"
-      desc="$(echo "${MENU_ENTRIES[$i]}" | cut -d'|' -f3)"
-      local check box
-      if [ "${selected[$i]}" -eq 1 ]; then
+    local j=0
+    while [ $j -lt $n ]; do
+      local key label desc sel
+      key="$(echo "${MENU_ENTRIES[$j]}" | cut -d'|' -f1)"
+      label="$(echo "${MENU_ENTRIES[$j]}" | cut -d'|' -f2)"
+      desc="$(echo "${MENU_ENTRIES[$j]}" | cut -d'|' -f3)"
+      eval "sel=\$selected_$j"
+      local check
+      if [ "$sel" -eq 1 ]; then
         check="$(green '[x]')"
       else
         check='[ ]'
       fi
-      if [ "$i" -eq "$cursor" ]; then
+      if [ "$j" -eq "$cursor" ]; then
         printf '  %s %s  %s  %s\n' "$check" "$(bold "▶ $label")" "$(dim '—')" "$(dim "$desc")"
       else
         printf '  %s %s  %s  %s\n' "$check" "$label" "$(dim '—')" "$(dim "$desc")"
       fi
+      j=$((j + 1))
     done
     printf '\n  %s\n' "$(dim 'SPACE toggle · ENTER confirm · a select all · n deselect all · q quit')"
   }
@@ -386,16 +388,18 @@ _show_menu() {
       if [ "$char2" = '[' ]; then
         IFS= read -r -s -n1 -t 0.1 char3 || true
         case "$char3" in
-          A) ((cursor > 0)) && ((cursor--)) ;;         # up
-          B) ((cursor < n - 1)) && ((cursor++)) ;;     # down
+          A) [ $cursor -gt 0 ] && cursor=$((cursor - 1)) ;;       # up
+          B) [ $cursor -lt $((n - 1)) ] && cursor=$((cursor + 1)) ;; # down
         esac
       fi
     elif [ "$char" = ' ' ]; then
-      selected[$cursor]=$(( 1 - selected[$cursor] ))
+      local cur_sel
+      eval "cur_sel=\$selected_$cursor"
+      eval "selected_$cursor=$(( 1 - cur_sel ))"
     elif [ "$char" = 'a' ]; then
-      for ((i = 0; i < n; i++)); do selected[$i]=1; done
+      local k=0; while [ $k -lt $n ]; do eval "selected_$k=1"; k=$((k+1)); done
     elif [ "$char" = 'n' ]; then
-      for ((i = 0; i < n; i++)); do selected[$i]=0; done
+      local k=0; while [ $k -lt $n ]; do eval "selected_$k=0"; k=$((k+1)); done
     elif [ "$char" = $'\r' ] || [ "$char" = $'\n' ] || [ "$char" = '' ]; then
       break
     elif [ "$char" = 'q' ]; then
@@ -411,11 +415,15 @@ _show_menu() {
   tput cnorm 2>/dev/null || true
   printf '\n'
 
-  # Emit selected keys
-  for ((i = 0; i < n; i++)); do
-    if [ "${selected[$i]}" -eq 1 ]; then
-      echo "$(echo "${MENU_ENTRIES[$i]}" | cut -d'|' -f1)"
+  # Emit selected keys to a temp file (read back in main)
+  local k=0
+  while [ $k -lt $n ]; do
+    local sel
+    eval "sel=\$selected_$k"
+    if [ "$sel" -eq 1 ]; then
+      echo "$(echo "${MENU_ENTRIES[$k]}" | cut -d'|' -f1)"
     fi
+    k=$((k + 1))
   done
 }
 
@@ -438,25 +446,30 @@ main() {
   # Touch ~/.zshrc if not present
   touch "$ZSHRC"
 
-  local -a to_install=()
+  local to_install
+  to_install=""
 
   if [ "$silent" -eq 1 ]; then
     info "$(yellow "Silent mode: installing all components")"
-    to_install=(starship eza bat zoxide fzf atuin direnv glow ripgrep fd vim zsh_plugins)
+    to_install="starship eza bat zoxide fzf atuin direnv glow ripgrep fd vim zsh_plugins"
   else
     # Check we have a real TTY for the interactive menu
     if [ ! -t 0 ] || [ ! -t 1 ]; then
       warn "No TTY detected (running via pipe?). Switching to --all mode."
-      to_install=(starship eza bat zoxide fzf atuin direnv glow ripgrep fd vim zsh_plugins)
+      to_install="starship eza bat zoxide fzf atuin direnv glow ripgrep fd vim zsh_plugins"
     else
-      mapfile -t to_install < <(_show_menu)
+      local _menu_tmp
+      _menu_tmp="$(mktemp)"
+      _show_menu > "$_menu_tmp"
+      to_install="$(cat "$_menu_tmp")"
+      rm -f "$_menu_tmp"
     fi
   fi
 
   # shai is always installed
   install_shai
 
-  for component in "${to_install[@]}"; do
+  for component in $to_install; do
     case "$component" in
       starship)    install_starship ;;
       eza)         install_eza ;;
