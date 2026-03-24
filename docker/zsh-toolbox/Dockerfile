@@ -50,7 +50,10 @@ RUN mkdir -p /etc/apt/keyrings \
 # Install starship and copy its config
 RUN curl -sS https://starship.rs/install.sh | sh -s -- --yes
 RUN mkdir -p /root/.config
-COPY starship.toml /root/.config/starship.toml
+COPY ../shell/starship.toml /root/.config/starship.toml
+# Append the Docker-specific container prompt indicator on top of the shared config
+RUN printf '\n[env_var.CONTAINER_NAME]\nvariable = "CONTAINER_NAME"\nsymbol = "\U0001F433 "\nformat = "[$symbol<$env_value>]($style) "\nstyle = "bold yellow"\n' >> /root/.config/starship.toml \
+    && sed -i 's|^format = """|format = """\n${env_var.CONTAINER_NAME}|' /root/.config/starship.toml
 
 # Install shai globally so it doesn't get shadowed by volume mounts
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
@@ -78,6 +81,6 @@ RUN echo 'export PATH="/usr/local/bin:$PATH"' >> /root/.zshrc \
     && echo "alias vi='vim'" >> /root/.zshrc \
     && echo "syntax on" >> /root/.vimrc \
     && echo "set background=dark" >> /root/.vimrc \
-    && echo 'source "$(/usr/local/bin/shai --shell-path zsh)"' >> /root/.zshrc
+    && echo '_shai_p="$(/usr/local/bin/shai --shell-path zsh | xargs)" && [ -n "$_shai_p" ] && source "$_shai_p"' >> /root/.zshrc
 
 CMD ["zsh"]
