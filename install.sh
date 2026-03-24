@@ -100,7 +100,7 @@ _add_shell_integration() {
     local shell="$1"
     local rc="$2"
 
-    local line="_shai_p=\"\$(shai --shell-path ${shell} 2>/dev/null | xargs)\" && [ -n \"\$_shai_p\" ] && source \"\$_shai_p\""
+    local line="_shai_p=\"\$(command shai --shell-path ${shell} 2>/dev/null | xargs)\" && [ -n \"\$_shai_p\" ] && source \"\$_shai_p\""
     local marker="shai --shell-path"
 
     if [ -f "$rc" ] && grep -qF "$marker" "$rc"; then

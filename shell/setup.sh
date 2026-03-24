@@ -118,7 +118,15 @@ install_shai() {
   fi
   uv tool install "git+https://github.com/zeddius1983/shell-assistant.git" --force --refresh
   export PATH="$(uv tool dir 2>/dev/null | sed 's|/tools$|/bin|'):$HOME/.local/bin:$PATH"
-  _zshrc_add "shai" 'source "$(shai --shell-path zsh)"'
+  # Evaluate the shell script path at install time and trim whitespace
+  # (some environments produce a leading newline from click.echo)
+  local _shai_path
+  _shai_path="$(command shai --shell-path zsh 2>/dev/null | xargs)"
+  if [ -z "$_shai_path" ]; then
+    warn "Could not determine shai shell integration path — add manually: source \"\$(shai --shell-path zsh)\""
+  else
+    _zshrc_add "shai" "source \"$_shai_path\""
+  fi
   ok "shai installed"
 }
 
