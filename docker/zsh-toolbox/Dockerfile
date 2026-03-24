@@ -81,6 +81,6 @@ RUN echo 'export PATH="/usr/local/bin:$PATH"' >> /root/.zshrc \
     && echo "alias vi='vim'" >> /root/.zshrc \
     && echo "syntax on" >> /root/.vimrc \
     && echo "set background=dark" >> /root/.vimrc \
-    && echo 'source "$(/usr/local/bin/shai --shell-path zsh)"' >> /root/.zshrc
+    && echo '_shai_p="$(/usr/local/bin/shai --shell-path zsh | xargs)" && [ -n "$_shai_p" ] && source "$_shai_p"' >> /root/.zshrc
 
 CMD ["zsh"]
