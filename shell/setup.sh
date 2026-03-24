@@ -337,20 +337,21 @@ _show_menu() {
 
   local cursor=0
 
-  # Hide cursor, save terminal settings
-  tput civis 2>/dev/null || true
+  # All display/input goes through /dev/tty so it still shows when stdout is
+  # redirected to a temp file for capturing the selections.
+  local TTY=/dev/tty
+  tput civis 2>/dev/null >&"$TTY" || true
   local old_stty
-  old_stty="$(stty -g 2>/dev/null || echo '')"
-  stty raw -echo 2>/dev/null || true
+  old_stty="$(stty -g 2>/dev/null < "$TTY" || echo '')"
+  stty raw -echo < "$TTY" > "$TTY" 2>&1 || true
 
   _menu_render() {
-    # Move cursor to top of menu area
-    printf '\033[%dA' "$((n + 5))" 2>/dev/null || true
-    printf '\033[J'   # clear to end of screen
+    printf '\033[%dA' "$((n + 5))" > "$TTY" 2>/dev/null || true
+    printf '\033[J'  > "$TTY"
 
-    printf '\n  %s\n' "$(bold 'Shai Toolbox Setup')"
-    printf '  %s\n\n' "$(dim '──────────────────────────────────────')"
-    printf '  %s  %s\n' "$(cyan '[*]')" "$(bold 'shai')  — $(dim 'AI shell assistant (always installed)')"
+    printf '\n  %s\n' "$(bold 'Shai Toolbox Setup')" > "$TTY"
+    printf '  %s\n\n' "$(dim '──────────────────────────────────────')" > "$TTY"
+    printf '  %s  %s\n' "$(cyan '[*]')" "$(bold 'shai')  — $(dim 'AI shell assistant (always installed)')" > "$TTY"
     local j=0
     while [ $j -lt $n ]; do
       local key label desc sel
@@ -365,31 +366,31 @@ _show_menu() {
         check='[ ]'
       fi
       if [ "$j" -eq "$cursor" ]; then
-        printf '  %s %s  %s  %s\n' "$check" "$(bold "▶ $label")" "$(dim '—')" "$(dim "$desc")"
+        printf '  %s %s  %s  %s\n' "$check" "$(bold "▶ $label")" "$(dim '—')" "$(dim "$desc")" > "$TTY"
       else
-        printf '  %s %s  %s  %s\n' "$check" "$label" "$(dim '—')" "$(dim "$desc")"
+        printf '  %s %s  %s  %s\n' "$check" "$label" "$(dim '—')" "$(dim "$desc")" > "$TTY"
       fi
       j=$((j + 1))
     done
-    printf '\n  %s\n' "$(dim 'SPACE toggle · ENTER confirm · a select all · n deselect all · q quit')"
+    printf '\n  %s\n' "$(dim 'SPACE toggle · ENTER confirm · a select all · n deselect all · q quit')" > "$TTY"
   }
 
   # Initial render — print blank lines to reserve space
-  printf '\n'; printf '%.0s\n' $(seq 1 $((n + 5)))
+  printf '\n' > "$TTY"
+  seq 1 $((n + 5)) | while read -r _; do printf '\n' > "$TTY"; done
   _menu_render
 
   while true; do
-    # Read one char (handle escape sequences for arrow keys)
     local char
-    IFS= read -r -s -n1 char || true
+    IFS= read -r -s -n1 char < "$TTY" || true
 
     if [ "$char" = $'\x1b' ]; then
-      IFS= read -r -s -n1 -t 0.1 char2 || true
+      IFS= read -r -s -n1 -t 0.1 char2 < "$TTY" || true
       if [ "$char2" = '[' ]; then
-        IFS= read -r -s -n1 -t 0.1 char3 || true
+        IFS= read -r -s -n1 -t 0.1 char3 < "$TTY" || true
         case "$char3" in
-          A) [ $cursor -gt 0 ] && cursor=$((cursor - 1)) ;;       # up
-          B) [ $cursor -lt $((n - 1)) ] && cursor=$((cursor + 1)) ;; # down
+          A) [ $cursor -gt 0 ] && cursor=$((cursor - 1)) ;;
+          B) [ $cursor -lt $((n - 1)) ] && cursor=$((cursor + 1)) ;;
         esac
       fi
     elif [ "$char" = ' ' ]; then
@@ -403,19 +404,19 @@ _show_menu() {
     elif [ "$char" = $'\r' ] || [ "$char" = $'\n' ] || [ "$char" = '' ]; then
       break
     elif [ "$char" = 'q' ]; then
-      stty "$old_stty" 2>/dev/null || true
-      tput cnorm 2>/dev/null || true
-      printf '\n\nAborted.\n'
+      stty "$old_stty" < "$TTY" > "$TTY" 2>&1 || true
+      tput cnorm 2>/dev/null > "$TTY" || true
+      printf '\n\nAborted.\n' > "$TTY"
       exit 0
     fi
     _menu_render
   done
 
-  stty "$old_stty" 2>/dev/null || true
-  tput cnorm 2>/dev/null || true
-  printf '\n'
+  stty "$old_stty" < "$TTY" > "$TTY" 2>&1 || true
+  tput cnorm 2>/dev/null > "$TTY" || true
+  printf '\n' > "$TTY"
 
-  # Emit selected keys to a temp file (read back in main)
+  # Emit selected keys to stdout (captured by the caller via temp file)
   local k=0
   while [ $k -lt $n ]; do
     local sel
