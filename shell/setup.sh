@@ -437,8 +437,6 @@ _show_menu() {
 # ---------------------------------------------------------------------------
 
 main() {
-  printf '\n%s\n' "$(bold '  Shai Toolbox Setup')"
-  printf '%s\n\n' "$(dim '  https://github.com/zeddius1983/shell-assistant')"
 
   local silent=0
   for arg in "$@"; do
