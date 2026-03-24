@@ -346,12 +346,8 @@ _show_menu() {
   stty -echo -icanon min 1 time 0 < "$TTY" 2>&1 || true
 
   _menu_render() {
-    printf '\033[%dA' "$((n + 7))" > "$TTY" 2>/dev/null || true
-    printf '\033[J'  > "$TTY"
-
-    printf '\n  %s\n' "$(bold 'Shai Toolbox Setup')" > "$TTY"
-    printf '  %s\n\n' "$(dim '──────────────────────────────────────')" > "$TTY"
-    printf '  %s  %s\n' "$(cyan '[*]')" "$(bold 'shai')  — $(dim 'AI shell assistant (always installed)')" > "$TTY"
+    # Move up only over the dynamic section (n items + blank + help)
+    printf '\033[%dA' "$((n + 2))" > "$TTY" 2>/dev/null || true
     local j=0
     while [ $j -lt $n ]; do
       local key label desc sel
@@ -361,7 +357,6 @@ _show_menu() {
       eval "sel=\$selected_$j"
       local check
       if [ "$j" -eq "$cursor" ]; then
-        # Focused row: highlight the checkbox in bold cyan regardless of state
         if [ "$sel" -eq 1 ]; then
           check="$(bold "$(cyan '[x]')")"
         else
@@ -374,15 +369,19 @@ _show_menu() {
           check='[ ]'
         fi
       fi
-      printf '  %s %s  %s  %s\n' "$check" "$label" "$(dim '—')" "$(dim "$desc")" > "$TTY"
+      printf '\033[2K\r  %s %s  %s  %s\n' "$check" "$label" "$(dim '—')" "$(dim "$desc")" > "$TTY"
       j=$((j + 1))
     done
-    printf '\n  %s\n' "$(dim 'SPACE toggle · ENTER confirm · a select all · n deselect all · q quit')" > "$TTY"
+    printf '\033[2K\r\n\033[2K\r  %s\n' "$(dim 'SPACE toggle · ENTER confirm · a select all · n deselect all · q quit')" > "$TTY"
   }
 
-  # Initial render — print blank lines to reserve space
-  printf '\n' > "$TTY"
-  seq 1 $((n + 7)) | while read -r _; do printf '\n' > "$TTY"; done
+  # Print static header once (not part of the re-render loop)
+  printf '\n  %s\n' "$(bold 'Shai Toolbox Setup')" > "$TTY"
+  printf '  %s\n\n' "$(dim '──────────────────────────────────────')" > "$TTY"
+  printf '  %s  %s\n' "$(cyan '[*]')" "$(bold 'shai')  — $(dim 'AI shell assistant (always installed)')" > "$TTY"
+
+  # Reserve n+2 lines for the dynamic section (items + blank + help)
+  seq 1 $((n + 2)) | while read -r _; do printf '\n' > "$TTY"; done
   _menu_render
 
   while true; do
