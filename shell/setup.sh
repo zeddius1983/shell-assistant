@@ -64,15 +64,43 @@ _ensure_brew() {
   fi
 }
 
-_brew() { brew install "$@" 2>/dev/null || brew upgrade "$@" 2>/dev/null || true; }
+_brew() {
+  local to_install=""
+  for pkg in "$@"; do
+    if ! brew ls --versions "$pkg" >/dev/null 2>&1; then
+      to_install="$to_install $pkg"
+    fi
+  done
+  if [ -n "$to_install" ]; then
+    # shellcheck disable=SC2086
+    brew install $to_install 2>/dev/null || true
+  fi
+}
 
 _apt_update_done=0
 _apt() {
-  if [ "$_apt_update_done" -eq 0 ]; then
-    sudo apt-get update -q
-    _apt_update_done=1
+  local to_install=""
+  for pkg in "$@"; do
+    if ! dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed"; then
+      to_install="$to_install $pkg"
+    fi
+  done
+  if [ -n "$to_install" ]; then
+    if [ "$_apt_update_done" -eq 0 ]; then
+      sudo apt-get update -q
+      _apt_update_done=1
+    fi
+    # shellcheck disable=SC2086
+    sudo apt-get install -y --no-install-recommends $to_install
   fi
-  sudo apt-get install -y --no-install-recommends "$@"
+}
+
+_uninstall_pkg() {
+  step "Uninstalling package: $*"
+  case "$OS" in
+    mac) brew uninstall "$@" 2>/dev/null || true ;;
+    linux) sudo apt-get remove -y "$@" 2>/dev/null || true ;;
+  esac
 }
 
 _add_apt_repo() {
@@ -106,6 +134,17 @@ _zshrc_add() {
   info "Added $key to ~/.zshrc"
 }
 
+_zshrc_remove() {
+  local key="$1"
+  if ! _zshrc_has "$key"; then return; fi
+  local tmp
+  tmp="$(mktemp)"
+  # Delete lines from start marker to end marker inclusive
+  sed "/# -- shai-toolbox: ${key} --/,/# -- end shai-toolbox: ${key} --/d" "$ZSHRC" > "$tmp"
+  mv "$tmp" "$ZSHRC"
+  info "Removed $key from ~/.zshrc"
+}
+
 # ---------------------------------------------------------------------------
 # Install functions — one per component
 # ---------------------------------------------------------------------------
@@ -130,6 +169,13 @@ install_shai() {
   ok "shai installed"
 }
 
+uninstall_shai() {
+  step "Uninstalling shai..."
+  uv tool uninstall shai 2>/dev/null || true
+  _zshrc_remove "shai"
+  ok "shai uninstalled"
+}
+
 install_starship() {
   step "Installing starship..."
   case "$OS" in
@@ -148,6 +194,18 @@ install_starship() {
     warn "starship.toml not found next to setup.sh — skipping config copy"
   fi
   ok "starship installed"
+}
+
+uninstall_starship() {
+  step "Uninstalling starship..."
+  if [ "$OS" = "mac" ]; then
+    _uninstall_pkg starship
+  else
+    sudo rm -f /usr/local/bin/starship
+  fi
+  rm -f "$HOME/.config/starship.toml"
+  _zshrc_remove "starship"
+  ok "starship uninstalled"
 }
 
 install_eza() {
@@ -171,6 +229,13 @@ install_eza() {
   ok "eza installed"
 }
 
+uninstall_eza() {
+  step "Uninstalling eza..."
+  _uninstall_pkg eza
+  _zshrc_remove "eza"
+  ok "eza uninstalled"
+}
+
 install_bat() {
   step "Installing bat..."
   case "$OS" in
@@ -189,6 +254,14 @@ install_bat() {
   ok "bat installed"
 }
 
+uninstall_bat() {
+  step "Uninstalling bat..."
+  _uninstall_pkg bat batcat
+  sudo rm -f /usr/local/bin/bat
+  _zshrc_remove "bat"
+  ok "bat uninstalled"
+}
+
 install_zoxide() {
   step "Installing zoxide..."
   case "$OS" in
@@ -197,6 +270,13 @@ install_zoxide() {
   esac
   _zshrc_add "zoxide" 'eval "$(zoxide init zsh)"'
   ok "zoxide installed"
+}
+
+uninstall_zoxide() {
+  step "Uninstalling zoxide..."
+  _uninstall_pkg zoxide
+  _zshrc_remove "zoxide"
+  ok "zoxide uninstalled"
 }
 
 install_fzf() {
@@ -216,6 +296,14 @@ install_fzf() {
   ok "fzf installed"
 }
 
+uninstall_fzf() {
+  step "Uninstalling fzf..."
+  _uninstall_pkg fzf
+  rm -f "$HOME/.fzf-key-bindings.zsh" "$HOME/.fzf-completion.zsh"
+  _zshrc_remove "fzf"
+  ok "fzf uninstalled"
+}
+
 install_atuin() {
   step "Installing atuin..."
   case "$OS" in
@@ -226,6 +314,17 @@ install_atuin() {
   ok "atuin installed"
 }
 
+uninstall_atuin() {
+  step "Uninstalling atuin..."
+  if [ "$OS" = "mac" ]; then
+    _uninstall_pkg atuin
+  else
+    rm -rf "$HOME/.atuin" "$HOME/.local/share/atuin" /usr/local/bin/atuin 2>/dev/null || true
+  fi
+  _zshrc_remove "atuin"
+  ok "atuin uninstalled"
+}
+
 install_direnv() {
   step "Installing direnv..."
   case "$OS" in
@@ -234,6 +333,13 @@ install_direnv() {
   esac
   _zshrc_add "direnv" 'eval "$(direnv hook zsh)"'
   ok "direnv installed"
+}
+
+uninstall_direnv() {
+  step "Uninstalling direnv..."
+  _uninstall_pkg direnv
+  _zshrc_remove "direnv"
+  ok "direnv uninstalled"
 }
 
 install_glow() {
@@ -251,6 +357,13 @@ install_glow() {
   ok "glow installed"
 }
 
+uninstall_glow() {
+  step "Uninstalling glow..."
+  _uninstall_pkg glow
+  _zshrc_remove "glow"
+  ok "glow uninstalled"
+}
+
 install_ripgrep() {
   step "Installing ripgrep (rg)..."
   case "$OS" in
@@ -258,6 +371,13 @@ install_ripgrep() {
     linux) _apt ripgrep ;;
   esac
   ok "ripgrep installed"
+}
+
+uninstall_ripgrep() {
+  step "Uninstalling ripgrep..."
+  _uninstall_pkg ripgrep
+  _zshrc_remove "ripgrep"
+  ok "ripgrep uninstalled"
 }
 
 install_fd() {
@@ -274,6 +394,14 @@ install_fd() {
   ok "fd installed"
 }
 
+uninstall_fd() {
+  step "Uninstalling fd..."
+  _uninstall_pkg fd fd-find
+  sudo rm -f /usr/local/bin/fd
+  _zshrc_remove "fd"
+  ok "fd uninstalled"
+}
+
 install_vim() {
   step "Installing vim..."
   case "$OS" in
@@ -288,6 +416,13 @@ install_vim() {
   } >> "$HOME/.vimrc" 2>/dev/null || true
   _zshrc_add "vim" "alias vi='vim'"
   ok "vim installed"
+}
+
+uninstall_vim() {
+  step "Uninstalling vim..."
+  _uninstall_pkg vim
+  _zshrc_remove "vim"
+  ok "vim uninstalled"
 }
 
 install_zsh_plugins() {
@@ -312,34 +447,46 @@ install_zsh_plugins() {
   ok "ZSH plugins installed"
 }
 
+uninstall_zsh_plugins() {
+  step "Uninstalling ZSH plugins..."
+  _uninstall_pkg zsh-autosuggestions zsh-syntax-highlighting
+  _zshrc_remove "zsh-plugins"
+  ok "ZSH plugins uninstalled"
+}
+
 # ---------------------------------------------------------------------------
 # Interactive menu (pure POSIX shell — no whiptail/dialog needed)
 # ---------------------------------------------------------------------------
 
-# Menu entries: "key|label|description|default_selected"
+# Menu entries: "key|label|description"
 MENU_ENTRIES=(
-  "starship|starship|Fast, customizable prompt|1"
-  "eza|eza|Modern ls with icons and git info|1"
-  "bat|bat|Syntax-highlighted cat and less replacement|1"
-  "zoxide|zoxide|Smarter cd that learns your paths|1"
-  "fzf|fzf|Fuzzy finder for files, history, and more|1"
-  "atuin|atuin|Shell history with search and sync|1"
-  "direnv|direnv|Auto-load project .env files|1"
-  "glow|glow|Render markdown in the terminal|1"
-  "ripgrep|ripgrep (rg)|Blazing fast grep alternative|1"
-  "fd|fd|Fast and user-friendly find alternative|1"
-  "vim|vim|Vi editor with syntax highlighting|1"
-  "zsh_plugins|ZSH plugins|Autosuggestions + syntax highlighting|1"
+  "shai|shai|AI shell assistant and toolbox core"
+  "starship|starship|Fast, customizable prompt"
+  "eza|eza|Modern ls with icons and git info"
+  "bat|bat|Syntax-highlighted cat and less replacement"
+  "zoxide|zoxide|Smarter cd that learns your paths"
+  "fzf|fzf|Fuzzy finder for files, history, and more"
+  "atuin|atuin|Shell history with search and sync"
+  "direnv|direnv|Auto-load project .env files"
+  "glow|glow|Render markdown in the terminal"
+  "ripgrep|ripgrep (rg)|Blazing fast grep alternative"
+  "fd|fd|Fast and user-friendly find alternative"
+  "vim|vim|Vi editor with syntax highlighting"
+  "zsh-plugins|ZSH plugins|Autosuggestions + syntax highlighting"
 )
 
 _show_menu() {
   local n=${#MENU_ENTRIES[@]}
-  # selected_N variables hold 0/1 for each entry
+  # selected_N variables hold 0/1 for each entry based on active state
   local i=0
   while [ $i -lt $n ]; do
-    local default
-    default="$(echo "${MENU_ENTRIES[$i]}" | cut -d'|' -f4)"
-    eval "selected_$i=$default"
+    local key
+    key="$(echo "${MENU_ENTRIES[$i]}" | cut -d'|' -f1)"
+    if _zshrc_has "$key"; then
+      eval "selected_$i=1"
+    else
+      eval "selected_$i=0"
+    fi
     i=$((i + 1))
   done
 
@@ -386,7 +533,6 @@ _show_menu() {
   # Print static header once (not part of the re-render loop)
   printf '\n  %s\n' "$(bold 'Shai Toolbox Setup')" > "$TTY"
   printf '  %s\n\n' "$(dim '──────────────────────────────────────')" > "$TTY"
-  printf '  %s  %s\n' "$(cyan '[*]')" "$(bold 'shai')  — $(dim 'AI shell assistant (always installed)')" > "$TTY"
 
   # Reserve n+2 lines for the dynamic section (items + blank + help)
   seq 1 $((n + 2)) | while read -r _; do printf '\n' > "$TTY"; done
@@ -460,14 +606,28 @@ main() {
   local to_install
   to_install=""
 
+  # Record initial installed state BEFORE menu interacts
+  local n=${#MENU_ENTRIES[@]}
+  local i=0
+  while [ $i -lt $n ]; do
+    local key
+    key="$(echo "${MENU_ENTRIES[$i]}" | cut -d'|' -f1)"
+    if _zshrc_has "$key"; then
+      eval "INITIAL_STATE_$(echo "$key" | tr '-' '_')=1"
+    else
+      eval "INITIAL_STATE_$(echo "$key" | tr '-' '_')=0"
+    fi
+    i=$((i + 1))
+  done
+
   if [ "$silent" -eq 1 ]; then
-    info "$(yellow "Silent mode: installing all components")"
-    to_install="starship eza bat zoxide fzf atuin direnv glow ripgrep fd vim zsh_plugins"
+    info "$(yellow "Silent mode: selecting all components")"
+    to_install="shai starship eza bat zoxide fzf atuin direnv glow ripgrep fd vim zsh-plugins"
   else
     # Check we have a real TTY for the interactive menu
     if [ ! -t 0 ] || [ ! -t 1 ]; then
       warn "No TTY detected (running via pipe?). Switching to --all mode."
-      to_install="starship eza bat zoxide fzf atuin direnv glow ripgrep fd vim zsh_plugins"
+      to_install="shai starship eza bat zoxide fzf atuin direnv glow ripgrep fd vim zsh-plugins"
     else
       local _menu_tmp
       _menu_tmp="$(mktemp)"
@@ -477,24 +637,29 @@ main() {
     fi
   fi
 
-  # shai is always installed
-  install_shai
+  # Diff-based execution engine
+  i=0
+  while [ $i -lt $n ]; do
+    local key
+    key="$(echo "${MENU_ENTRIES[$i]}" | cut -d'|' -f1)"
+    local safe_key
+    safe_key="$(echo "$key" | tr '-' '_')"
 
-  for component in $to_install; do
-    case "$component" in
-      starship)    install_starship ;;
-      eza)         install_eza ;;
-      bat)         install_bat ;;
-      zoxide)      install_zoxide ;;
-      fzf)         install_fzf ;;
-      atuin)       install_atuin ;;
-      direnv)      install_direnv ;;
-      glow)        install_glow ;;
-      ripgrep)     install_ripgrep ;;
-      fd)          install_fd ;;
-      vim)         install_vim ;;
-      zsh_plugins) install_zsh_plugins ;;
-    esac
+    local was_installed
+    eval "was_installed=\$INITIAL_STATE_$safe_key"
+
+    local is_selected=0
+    for comp in $to_install; do
+      if [ "$comp" = "$key" ]; then is_selected=1; break; fi
+    done
+
+    if [ "$was_installed" -eq 0 ] && [ "$is_selected" -eq 1 ]; then
+      "install_$safe_key"
+    elif [ "$was_installed" -eq 1 ] && [ "$is_selected" -eq 0 ]; then
+      "uninstall_$safe_key"
+    fi
+    
+    i=$((i + 1))
   done
 
   printf '\n%s\n\n' "$(green "$(bold '✓ All done!')")"
