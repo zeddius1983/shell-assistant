@@ -262,6 +262,35 @@ uninstall_bat() {
   ok "bat uninstalled"
 }
 
+install_delta() {
+  step "Installing git-delta..."
+  case "$OS" in
+    mac) _ensure_brew; _brew git-delta ;;
+    linux) _apt git-delta ;;
+  esac
+  git config --global core.pager "delta"
+  git config --global interactive.diffFilter "delta --color-only"
+  git config --global delta.navigate true
+  git config --global delta.light false
+  git config --global merge.conflictstyle diff3
+  git config --global diff.colorMoved default
+  _zshrc_add "delta" ""
+  ok "git-delta installed"
+}
+
+uninstall_delta() {
+  step "Uninstalling git-delta..."
+  _uninstall_pkg git-delta
+  git config --global --unset core.pager || true
+  git config --global --unset interactive.diffFilter || true
+  git config --global --unset delta.navigate || true
+  git config --global --unset delta.light || true
+  git config --global --unset merge.conflictstyle || true
+  git config --global --unset diff.colorMoved || true
+  _zshrc_remove "delta"
+  ok "git-delta uninstalled"
+}
+
 install_zoxide() {
   step "Installing zoxide..."
   case "$OS" in
@@ -464,6 +493,7 @@ MENU_ENTRIES=(
   "starship|starship|Fast, customizable prompt"
   "eza|eza|Modern ls with icons and git info"
   "bat|bat|Syntax-highlighted cat and less replacement"
+  "delta|git delta|Syntax-highlighting pager for git diffs"
   "zoxide|zoxide|Smarter cd that learns your paths"
   "fzf|fzf|Fuzzy finder for files, history, and more"
   "atuin|atuin|Shell history with search and sync"
@@ -622,12 +652,12 @@ main() {
 
   if [ "$silent" -eq 1 ]; then
     info "$(yellow "Silent mode: selecting all components")"
-    to_install="shai starship eza bat zoxide fzf atuin direnv glow ripgrep fd vim zsh-plugins"
+    to_install="shai starship eza bat delta zoxide fzf atuin direnv glow ripgrep fd vim zsh-plugins"
   else
     # Check we have a real TTY for the interactive menu
     if [ ! -t 0 ] || [ ! -t 1 ]; then
       warn "No TTY detected (running via pipe?). Switching to --all mode."
-      to_install="shai starship eza bat zoxide fzf atuin direnv glow ripgrep fd vim zsh-plugins"
+      to_install="shai starship eza bat delta zoxide fzf atuin direnv glow ripgrep fd vim zsh-plugins"
     else
       local _menu_tmp
       _menu_tmp="$(mktemp)"

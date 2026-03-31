@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fzf \
     direnv \
     bat \
+    git-delta \
     ripgrep \
     fd-find \
     python3 \
@@ -81,6 +82,12 @@ RUN echo 'export PATH="/usr/local/bin:$PATH"' >> /root/.zshrc \
     && echo "alias vi='vim'" >> /root/.zshrc \
     && echo "syntax on" >> /root/.vimrc \
     && echo "set background=dark" >> /root/.vimrc \
+    && git config --global core.pager "delta" \
+    && git config --global interactive.diffFilter "delta --color-only" \
+    && git config --global delta.navigate true \
+    && git config --global delta.light false \
+    && git config --global merge.conflictstyle diff3 \
+    && git config --global diff.colorMoved default \
     && echo '_shai_p="$(/usr/local/bin/shai --shell-path zsh | xargs)" && [ -n "$_shai_p" ] && source "$_shai_p"' >> /root/.zshrc
 
 CMD ["zsh"]
