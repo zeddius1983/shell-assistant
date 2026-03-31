@@ -118,7 +118,7 @@ _add_apt_repo() {
 
 ZSHRC="${ZDOTDIR:-$HOME}/.zshrc"
 
-_zshrc_has() { grep -qF "zsh-toolbox:$1" "$ZSHRC" 2>/dev/null; }
+_zshrc_has() { grep -qF "shai-toolbox: $1" "$ZSHRC" 2>/dev/null; }
 
 _zshrc_add() {
   local key="$1"; shift
