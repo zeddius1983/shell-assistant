@@ -207,9 +207,32 @@ providers:
 
 ---
 
-## Recommended terminal setup
+## 🧰 Shai Toolbox & Terminal Setup
 
-shai works in any terminal, but the following tools give you the best experience.
+Shai works out of the box in any terminal, but we provide a cross-platform, idempotent **interactive installer** to perfectly configure your environment with the best modern Rust-based terminal tools (which Shai can deeply integrate with).
+
+Instead of installing things manually, just run:
+
+```bash
+./shell/setup.sh
+```
+
+This launches the **Shai Toolbox interactive menu**, allowing you to seamlessly toggle `[x]` install or `[ ]` completely uninstall the following recommended integrations natively via `brew` or `apt`:
+
+### git-delta — drastically better git diffs
+
+[git-delta](https://github.com/dandavison/delta) acts as a syntax-highlighting pager for git. The toolbox automatically sets it as your global `core.pager` and configures it for modern diff layouts.
+
+**Usage Examples:**
+```bash
+# Every standard git command is now beautifully syntax-highlighted and side-by-side
+git diff
+git show
+git log -p
+
+# Shai can also use delta to highlight the diff patches it generates
+git diff | shai "why is this failing?"
+```
 
 ### glow — markdown rendering
 
