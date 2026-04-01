@@ -27,25 +27,26 @@ With tmux, the full screen output (including stderr) is captured. Without tmux, 
 
 ## Installation
 
-### One-line install (recommended)
+### Method 1: Shai Toolbox (Recommended for macOS/Linux)
+
+Shai works out of the box in any terminal, but we provide a cross-platform, idempotent **interactive installer** to perfectly configure your environment with shai and the best modern terminal utilities (which Shai can deeply integrate with).
+
+Instead of installing things manually, run the toolbox directly from GitHub:
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/zeddius1983/shell-assistant/main/install.sh)"
 ```
 
-This will:
-1. Install [uv](https://docs.astral.sh/uv/) if it isn't already present
-2. Install shai via `uv tool install shai`
-3. Add the shell integration line to your `~/.zshrc` or `~/.bashrc`
+This launches the **Shai Toolbox interactive menu**, allowing you to seamlessly toggle `[x]` install or `[ ]` completely uninstall components such as `starship`, `eza`, `bat`, `git-delta`, `fzf`, `atuin`, `glow`, and more natively via `brew` or `apt`.
 
-Then reload your shell and create your config:
-
+If you prefer to install all components silently without the interactive menu:
 ```bash
-source ~/.zshrc      # or ~/.bashrc
-shai /config         # create config and add your API key
+curl -fsSL https://raw.githubusercontent.com/zeddius1983/shell-assistant/main/install.sh | bash -s -- --all
 ```
 
-### Alternative: pipx
+> **Note:** Whenever `~/.zshrc` is modified by the installer, a backup is automatically created first as `~/.zshrc.YYYYMMDD_HHMMSS.bak`.
+
+### Method 2: pipx (Standalone)
 
 ```bash
 pipx install shai
@@ -63,31 +64,38 @@ source "$(shai --shell-path zsh)"
 source "$(shai --shell-path bash)"
 ```
 
-### Alternative: Docker (no Python required)
+### Method 3: Docker (No Python required)
 
 ```bash
 docker pull ghcr.io/zeddius1983/shell-assistant:latest
-
-# Or build locally:
-git clone https://github.com/zeddius1983/shell-assistant
-cd shell-assistant
-docker build -t shai:local .
 ```
 
 Add to `~/.zshrc` or `~/.bashrc`:
 
 ```bash
-export SHAI_IMAGE="ghcr.io/zeddius1983/shell-assistant:latest"  # or shai:local
+export SHAI_IMAGE="ghcr.io/zeddius1983/shell-assistant:latest"
 source /path/to/shell-assistant/shell/shai-docker.sh
 ```
 
-### Alternative: build from source
+### Method 4: Build from source
 
 ```bash
 git clone https://github.com/zeddius1983/shell-assistant
 cd shell-assistant
 uv tool install .
 ```
+
+---
+
+## Uninstallation
+
+If you installed via the **Shai Toolbox** (Method 1), you can simply run the installer again and press <kbd>Space</kbd> to uncheck `[ ] shai` (and any other components you wish to remove), then press <kbd>Enter</kbd> to confirm. Your `.zshrc` block will be neatly cleaned up.
+
+If you installed via **pipx** (Method 2):
+```bash
+pipx uninstall shai
+```
+And manually remove the `source "$(shai --shell-path zsh)"` line from your `~/.zshrc`.
 
 ---
 
@@ -204,141 +212,6 @@ providers:
 | llama.cpp / vLLM / any OpenAI-compatible | `openai` | Set `base_url` to your server |
 
 > **Docker note:** `localhost` in your config is automatically rewritten to `host.docker.internal` when shai runs inside a container, so local servers are always reachable.
-
----
-
-## 🧰 Shai Toolbox & Terminal Setup
-
-Shai works out of the box in any terminal, but we provide a cross-platform, idempotent **interactive installer** to perfectly configure your environment with the best modern Rust-based terminal tools (which Shai can deeply integrate with).
-
-Instead of installing things manually, just run:
-
-```bash
-./shell/setup.sh
-```
-
-This launches the **Shai Toolbox interactive menu**, allowing you to seamlessly toggle `[x]` install or `[ ]` completely uninstall the following recommended integrations natively via `brew` or `apt`:
-
-### git-delta — drastically better git diffs
-
-[git-delta](https://github.com/dandavison/delta) acts as a syntax-highlighting pager for git. The toolbox automatically sets it as your global `core.pager` and configures it for modern diff layouts.
-
-**Usage Examples:**
-```bash
-# Every standard git command is now beautifully syntax-highlighted and side-by-side
-git diff
-git show
-git log -p
-
-# Shai can also use delta to highlight the diff patches it generates
-git diff | shai "why is this failing?"
-```
-
-### glow — markdown rendering
-
-shai pipes its responses through [glow](https://github.com/charmbracelet/glow) when available, giving you properly rendered markdown with syntax-highlighted code blocks.
-
-```bash
-brew install glow
-```
-
-Without glow, shai falls back to rich's live markdown renderer inside the container.
-
-### Starship — prompt
-
-[Starship](https://starship.rs) is a fast, cross-shell prompt. It shows git branch, Python version, Docker context, and more — useful context when working alongside shai.
-
-```bash
-brew install starship
-```
-
-Add to `~/.zshrc` (must be the last line):
-```zsh
-eval "$(starship init zsh)"
-```
-
-**Recommended `~/.config/starship.toml`** for use with shai:
-
-```toml
-format = """
-$directory$git_branch$git_status$python$docker_context
-$character"""
-
-[directory]
-truncation_length = 3
-truncate_to_repo = true
-
-[git_branch]
-symbol = " "
-style = "bold purple"
-
-[git_status]
-ahead = "⇡${count}"
-behind = "⇣${count}"
-diverged = "⇕⇡${ahead_count}⇣${behind_count}"
-modified = "!${count}"
-untracked = "?${count}"
-staged = "+${count}"
-
-[python]
-symbol = "🐍 "
-format = "via [${symbol}v${version}](yellow) "
-
-[docker_context]
-symbol = "🐳 "
-format = "via [${symbol}${context}](blue bold) "
-only_with_files = false
-
-[character]
-success_symbol = "[❯](bold green)"
-error_symbol = "[❯](bold red)"
-```
-
-This prompt clearly shows your active directory, git state, Python environment, and Docker context at a glance — so shai always has relevant visual context alongside the captured terminal scrollback.
-
-### eza — better `ls`
-
-[eza](https://eza.rocks) is a modern `ls` replacement with colour coding, icons, and git status. When you ask `shai do list files`, the output it works from is much richer.
-
-```bash
-brew install eza
-```
-
-**Recommended aliases** — add to `~/.zshrc`:
-
-```zsh
-alias ls='eza --icons --group-directories-first'
-alias ll='eza --icons --group-directories-first -l --git'
-alias la='eza --icons --group-directories-first -la --git'
-alias lt='eza --icons --tree --level=2'
-alias lta='eza --icons --tree --level=2 -a'
-```
-
-### zsh-syntax-highlighting
-
-Highlights valid commands green and unknown commands red as you type.
-
-```bash
-brew install zsh-syntax-highlighting
-```
-
-Add to `~/.zshrc` (after all other sourcing):
-```zsh
-source $(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-```
-
-### zsh-autosuggestions
-
-Shows grey completions from your history as you type — press `→` to accept.
-
-```bash
-brew install zsh-autosuggestions
-```
-
-Add to `~/.zshrc`:
-```zsh
-source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh
-```
 
 ---
 
