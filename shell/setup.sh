@@ -117,6 +117,18 @@ _add_apt_repo() {
 # ---------------------------------------------------------------------------
 
 ZSHRC="${ZDOTDIR:-$HOME}/.zshrc"
+_ZSHRC_BACKED_UP=0
+
+_backup_zshrc() {
+  if [ "$_ZSHRC_BACKED_UP" -eq 1 ]; then return; fi
+  if [ -f "$ZSHRC" ]; then
+    local ts
+    ts="$(date +%Y%m%d_%H%M%S)"
+    cp -p "$ZSHRC" "$ZSHRC.$ts.bak"
+    info "Created backup: $ZSHRC.$ts.bak"
+  fi
+  _ZSHRC_BACKED_UP=1
+}
 
 _zshrc_has() { grep -qF "shai-toolbox: $1" "$ZSHRC" 2>/dev/null; }
 
@@ -126,6 +138,7 @@ _zshrc_add() {
     info "$(dim "~/.zshrc[$key] already present — skipping")"
     return
   fi
+  _backup_zshrc
   {
     printf '\n# -- shai-toolbox: %s --\n' "$key"
     printf '%s\n' "$@"
@@ -137,6 +150,7 @@ _zshrc_add() {
 _zshrc_remove() {
   local key="$1"
   if ! _zshrc_has "$key"; then return; fi
+  _backup_zshrc
   local tmp
   tmp="$(mktemp)"
   # Delete lines from start marker to end marker inclusive
