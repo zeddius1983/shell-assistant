@@ -190,6 +190,36 @@ uninstall_shai() {
   ok "shai uninstalled"
 }
 
+install_shai_implicit() {
+  local bind="${SHAI_IMPLICIT_BIND:-}"
+  if [ -z "$bind" ]; then
+    if [ -t 0 ] && [ -t 1 ]; then
+      printf "  %s " "$(cyan "Enter keybinding for shai implicit mode [default: ^@ (Ctrl+Space)]:")"
+      read -r bind </dev/tty
+    fi
+    [ -z "$bind" ] && bind="^@"
+  fi
+
+  step "Installing shai implicit mode (binding: $bind)..."
+  _zshrc_add "shai-implicit" \
+    "function _shai_implicit_mode() {" \
+    "  if [[ -n \"\${BUFFER}\" ]]; then" \
+    "    BUFFER=\"shai \${BUFFER}\"" \
+    "    CURSOR=\${#BUFFER}" \
+    "    zle accept-line" \
+    "  fi" \
+    "}" \
+    "zle -N _shai_implicit_mode" \
+    "bindkey '$bind' _shai_implicit_mode"
+  ok "shai implicit mode installed"
+}
+
+uninstall_shai_implicit() {
+  step "Uninstalling shai implicit mode..."
+  _zshrc_remove "shai-implicit"
+  ok "shai implicit mode uninstalled"
+}
+
 install_starship() {
   step "Installing starship..."
   case "$OS" in
@@ -397,6 +427,7 @@ install_glow() {
       _apt glow
       ;;
   esac
+  _zshrc_add "glow" ""
   ok "glow installed"
 }
 
@@ -413,6 +444,7 @@ install_ripgrep() {
     mac) _ensure_brew; _brew ripgrep ;;
     linux) _apt ripgrep ;;
   esac
+  _zshrc_add "ripgrep" ""
   ok "ripgrep installed"
 }
 
@@ -434,6 +466,7 @@ install_fd() {
       fi
       ;;
   esac
+  _zshrc_add "fd" ""
   ok "fd installed"
 }
 
@@ -501,20 +534,28 @@ uninstall_zsh_plugins() {
 # Interactive menu (pure POSIX shell — no whiptail/dialog needed)
 # ---------------------------------------------------------------------------
 
-# Menu entries: "key|label|description"
+# Menu entries: "key|label|description" OR "H|Header Title"
 MENU_ENTRIES=(
+  "H|🧠 Shai Configuration"
   "shai|shai|AI shell assistant and toolbox core"
+  "shai-implicit|shai implicit mode|Run shai on current buffer with custom hotkey"
+  "H|"
+  "H|🚀 Terminal Utilities"
   "starship|starship|Fast, customizable prompt"
   "eza|eza|Modern ls with icons and git info"
   "bat|bat|Syntax-highlighted cat and less replacement"
   "delta|git delta|Syntax-highlighting pager for git diffs"
+  "H|"
+  "H|📂 Navigation & Finding"
   "zoxide|zoxide|Smarter cd that learns your paths"
   "fzf|fzf|Fuzzy finder for files, history, and more"
+  "fd|fd|Fast and user-friendly find alternative"
+  "ripgrep|ripgrep (rg)|Blazing fast grep alternative"
+  "H|"
+  "H|🛠  Productivity"
   "atuin|atuin|Shell history with search and sync"
   "direnv|direnv|Auto-load project .env files"
   "glow|glow|Render markdown in the terminal"
-  "ripgrep|ripgrep (rg)|Blazing fast grep alternative"
-  "fd|fd|Fast and user-friendly find alternative"
   "vim|vim|Vi editor with syntax highlighting"
   "zsh-plugins|ZSH plugins|Autosuggestions + syntax highlighting"
 )
@@ -524,17 +565,22 @@ _show_menu() {
   # selected_N variables hold 0/1 for each entry based on active state
   local i=0
   while [ $i -lt $n ]; do
-    local key
-    key="$(echo "${MENU_ENTRIES[$i]}" | cut -d'|' -f1)"
-    if _zshrc_has "$key"; then
-      eval "selected_$i=1"
+    local type="$(echo "${MENU_ENTRIES[$i]}" | cut -d'|' -f1)"
+    if [ "$type" = "H" ]; then
+      eval "selected_$i=-1"
     else
-      eval "selected_$i=0"
+      if _zshrc_has "$type"; then eval "selected_$i=1"
+      else eval "selected_$i=0"; fi
     fi
     i=$((i + 1))
   done
 
   local cursor=0
+  while [ $cursor -lt $n ]; do
+    local sel; eval "sel=\$selected_$cursor"
+    if [ "$sel" -ne -1 ]; then break; fi
+    cursor=$((cursor + 1))
+  done
 
   # All display/input goes through /dev/tty so it still shows when stdout is
   # redirected to a temp file for capturing the selections.
@@ -549,26 +595,36 @@ _show_menu() {
     printf '\033[%dA' "$((n + 2))" > "$TTY" 2>/dev/null || true
     local j=0
     while [ $j -lt $n ]; do
-      local key label desc sel
-      key="$(echo "${MENU_ENTRIES[$j]}" | cut -d'|' -f1)"
-      label="$(echo "${MENU_ENTRIES[$j]}" | cut -d'|' -f2)"
-      desc="$(echo "${MENU_ENTRIES[$j]}" | cut -d'|' -f3)"
+      local type label desc sel check
+      type="$(echo "${MENU_ENTRIES[$j]}" | cut -d'|' -f1)"
       eval "sel=\$selected_$j"
-      local check
-      if [ "$j" -eq "$cursor" ]; then
-        if [ "$sel" -eq 1 ]; then
-          check="$(bold "$(cyan '[x]')")"
+      if [ "$type" = "H" ]; then
+        label="$(echo "${MENU_ENTRIES[$j]}" | cut -d'|' -f2)"
+        if [ -z "$label" ]; then
+          printf '\033[2K\r\n' > "$TTY"
         else
-          check="$(bold "$(cyan '[ ]')")"
+          printf '\033[2K\r  %s\n' "$(bold "$(cyan "$label")")" > "$TTY"
         fi
       else
-        if [ "$sel" -eq 1 ]; then
-          check="$(green '[x]')"
+        label="$(echo "${MENU_ENTRIES[$j]}" | cut -d'|' -f2)"
+        desc="$(echo "${MENU_ENTRIES[$j]}" | cut -d'|' -f3)"
+        if [ "$j" -eq "$cursor" ]; then
+          if [ "$sel" -eq 1 ]; then
+            check="$(cyan '❯') $(green '◉')"
+            label="$(cyan "$(bold "$label")")"
+          else
+            check="$(cyan '❯') $(dim '◯')"
+            label="$(cyan "$(bold "$label")")"
+          fi
         else
-          check='[ ]'
+          if [ "$sel" -eq 1 ]; then
+            check="  $(green '◉')"
+          else
+            check="  $(dim '◯')"
+          fi
         fi
+        printf '\033[2K\r %s  %s  %s  %s\n' "$check" "$label" "$(dim '—')" "$(dim "$desc")" > "$TTY"
       fi
-      printf '\033[2K\r  %s %s  %s  %s\n' "$check" "$label" "$(dim '—')" "$(dim "$desc")" > "$TTY"
       j=$((j + 1))
     done
     printf '\033[2K\r\n\033[2K\r  %s\n' "$(dim 'SPACE toggle · ENTER confirm · a select all · n deselect all · q quit')" > "$TTY"
@@ -591,18 +647,32 @@ _show_menu() {
       if [ "$char2" = '[' ]; then
         IFS= read -r -s -n1 -t 0.1 char3 < "$TTY" || true
         case "$char3" in
-          A) [ $cursor -gt 0 ] && cursor=$((cursor - 1)) ;;
-          B) [ $cursor -lt $((n - 1)) ] && cursor=$((cursor + 1)) ;;
+          A) 
+            local tmp=$cursor
+            while [ $tmp -gt 0 ]; do
+              tmp=$((tmp - 1))
+              local sel; eval "sel=\$selected_$tmp"
+              if [ "$sel" -ne -1 ]; then cursor=$tmp; break; fi
+            done
+            ;;
+          B) 
+            local tmp=$cursor
+            while [ $tmp -lt $((n - 1)) ]; do
+              tmp=$((tmp + 1))
+              local sel; eval "sel=\$selected_$tmp"
+              if [ "$sel" -ne -1 ]; then cursor=$tmp; break; fi
+            done
+            ;;
         esac
       fi
     elif [ "$char" = ' ' ]; then
       local cur_sel
       eval "cur_sel=\$selected_$cursor"
-      eval "selected_$cursor=$(( 1 - cur_sel ))"
+      if [ "$cur_sel" -ne -1 ]; then eval "selected_$cursor=$(( 1 - cur_sel ))"; fi
     elif [ "$char" = 'a' ]; then
-      local k=0; while [ $k -lt $n ]; do eval "selected_$k=1"; k=$((k+1)); done
+      local k=0; while [ $k -lt $n ]; do local s; eval "s=\$selected_$k"; [ "$s" -ne -1 ] && eval "selected_$k=1"; k=$((k+1)); done
     elif [ "$char" = 'n' ]; then
-      local k=0; while [ $k -lt $n ]; do eval "selected_$k=0"; k=$((k+1)); done
+      local k=0; while [ $k -lt $n ]; do local s; eval "s=\$selected_$k"; [ "$s" -ne -1 ] && eval "selected_$k=0"; k=$((k+1)); done
     elif [ "$char" = $'\r' ] || [ "$char" = $'\n' ] || [ "$char" = '' ]; then
       break
     elif [ "$char" = 'q' ]; then
@@ -621,10 +691,11 @@ _show_menu() {
   # Emit selected keys to stdout (captured by the caller via temp file)
   local k=0
   while [ $k -lt $n ]; do
-    local sel
+    local sel type
     eval "sel=\$selected_$k"
-    if [ "$sel" -eq 1 ]; then
-      echo "$(echo "${MENU_ENTRIES[$k]}" | cut -d'|' -f1)"
+    type="$(echo "${MENU_ENTRIES[$k]}" | cut -d'|' -f1)"
+    if [ "$sel" -eq 1 ] && [ "$type" != "H" ]; then
+      echo "$type"
     fi
     k=$((k + 1))
   done
@@ -654,24 +725,27 @@ main() {
   local n=${#MENU_ENTRIES[@]}
   local i=0
   while [ $i -lt $n ]; do
-    local key
-    key="$(echo "${MENU_ENTRIES[$i]}" | cut -d'|' -f1)"
-    if _zshrc_has "$key"; then
-      eval "INITIAL_STATE_$(echo "$key" | tr '-' '_')=1"
+    local type="$(echo "${MENU_ENTRIES[$i]}" | cut -d'|' -f1)"
+    if [ "$type" = "H" ]; then
+      i=$((i + 1))
+      continue
+    fi
+    if _zshrc_has "$type"; then
+      eval "INITIAL_STATE_$(echo "$type" | tr '-' '_')=1"
     else
-      eval "INITIAL_STATE_$(echo "$key" | tr '-' '_')=0"
+      eval "INITIAL_STATE_$(echo "$type" | tr '-' '_')=0"
     fi
     i=$((i + 1))
   done
 
   if [ "$silent" -eq 1 ]; then
     info "$(yellow "Silent mode: selecting all components")"
-    to_install="shai starship eza bat delta zoxide fzf atuin direnv glow ripgrep fd vim zsh-plugins"
+    to_install="shai shai-implicit starship eza bat delta zoxide fzf atuin direnv glow ripgrep fd vim zsh-plugins"
   else
     # Check we have a real TTY for the interactive menu
     if [ ! -t 0 ] || [ ! -t 1 ]; then
       warn "No TTY detected (running via pipe?). Switching to --all mode."
-      to_install="shai starship eza bat delta zoxide fzf atuin direnv glow ripgrep fd vim zsh-plugins"
+      to_install="shai shai-implicit starship eza bat delta zoxide fzf atuin direnv glow ripgrep fd vim zsh-plugins"
     else
       local _menu_tmp
       _menu_tmp="$(mktemp)"
@@ -684,8 +758,12 @@ main() {
   # Diff-based execution engine
   i=0
   while [ $i -lt $n ]; do
-    local key
-    key="$(echo "${MENU_ENTRIES[$i]}" | cut -d'|' -f1)"
+    local type="$(echo "${MENU_ENTRIES[$i]}" | cut -d'|' -f1)"
+    if [ "$type" = "H" ]; then
+      i=$((i + 1))
+      continue
+    fi
+    local key="$type"
     local safe_key
     safe_key="$(echo "$key" | tr '-' '_')"
 
