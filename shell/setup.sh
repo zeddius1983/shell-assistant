@@ -427,6 +427,7 @@ install_glow() {
       _apt glow
       ;;
   esac
+  _zshrc_add "glow" ""
   ok "glow installed"
 }
 
@@ -443,6 +444,7 @@ install_ripgrep() {
     mac) _ensure_brew; _brew ripgrep ;;
     linux) _apt ripgrep ;;
   esac
+  _zshrc_add "ripgrep" ""
   ok "ripgrep installed"
 }
 
@@ -464,6 +466,7 @@ install_fd() {
       fi
       ;;
   esac
+  _zshrc_add "fd" ""
   ok "fd installed"
 }
 
