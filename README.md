@@ -101,6 +101,17 @@ And manually remove the `source "$(shai --shell-path zsh)"` line from your `~/.z
 
 ## Usage
 
+### Implicit Mode (Ctrl+Space)
+
+If you enabled `[x] shai implicit mode` in the Shai Toolbox installer, you can type any question directly into your terminal and press `Ctrl+Space`:
+
+```bash
+find the largest file in this folder[Press Ctrl+Space]
+# Instantly expands and runs: shai find the largest file in this folder
+```
+
+### Standard Commands
+
 ```bash
 # Explain what just went wrong
 shai help

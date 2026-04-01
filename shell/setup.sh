@@ -190,6 +190,27 @@ uninstall_shai() {
   ok "shai uninstalled"
 }
 
+install_shai_implicit() {
+  step "Installing shai implicit mode..."
+  _zshrc_add "shai-implicit" \
+    "function _shai_implicit_mode() {" \
+    "  if [[ -n \"\${BUFFER}\" ]]; then" \
+    "    BUFFER=\"shai \${BUFFER}\"" \
+    "    CURSOR=\${#BUFFER}" \
+    "    zle accept-line" \
+    "  fi" \
+    "}" \
+    "zle -N _shai_implicit_mode" \
+    "bindkey '^@' _shai_implicit_mode"
+  ok "shai implicit mode installed"
+}
+
+uninstall_shai_implicit() {
+  step "Uninstalling shai implicit mode..."
+  _zshrc_remove "shai-implicit"
+  ok "shai implicit mode uninstalled"
+}
+
 install_starship() {
   step "Installing starship..."
   case "$OS" in
@@ -504,6 +525,7 @@ uninstall_zsh_plugins() {
 # Menu entries: "key|label|description"
 MENU_ENTRIES=(
   "shai|shai|AI shell assistant and toolbox core"
+  "shai-implicit|shai implicit mode|Run shai on current buffer with Ctrl+Space"
   "starship|starship|Fast, customizable prompt"
   "eza|eza|Modern ls with icons and git info"
   "bat|bat|Syntax-highlighted cat and less replacement"
@@ -666,12 +688,12 @@ main() {
 
   if [ "$silent" -eq 1 ]; then
     info "$(yellow "Silent mode: selecting all components")"
-    to_install="shai starship eza bat delta zoxide fzf atuin direnv glow ripgrep fd vim zsh-plugins"
+    to_install="shai shai-implicit starship eza bat delta zoxide fzf atuin direnv glow ripgrep fd vim zsh-plugins"
   else
     # Check we have a real TTY for the interactive menu
     if [ ! -t 0 ] || [ ! -t 1 ]; then
       warn "No TTY detected (running via pipe?). Switching to --all mode."
-      to_install="shai starship eza bat delta zoxide fzf atuin direnv glow ripgrep fd vim zsh-plugins"
+      to_install="shai shai-implicit starship eza bat delta zoxide fzf atuin direnv glow ripgrep fd vim zsh-plugins"
     else
       local _menu_tmp
       _menu_tmp="$(mktemp)"
