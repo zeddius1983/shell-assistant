@@ -61,8 +61,12 @@ def _tmux_capture(lines: int) -> Optional[str]:
     if not os.environ.get("TMUX"):
         return None
     try:
+        args = ["tmux", "capture-pane", "-p", "-S", str(-lines)]
+        if os.environ.get("TMUX_PANE"):
+            args.extend(["-t", os.environ["TMUX_PANE"]])
+            
         result = subprocess.run(
-            ["tmux", "capture-pane", "-p", "-S", str(-lines)],
+            args,
             capture_output=True,
             text=True,
             timeout=3,
